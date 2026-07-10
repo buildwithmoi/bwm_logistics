@@ -100,5 +100,6 @@ indentation, line length 110; prettier + eslint for JS/Vue).
   PRD specifies custom Container/Shipment doctypes. `Delivery Trip`/`Driver`/`Vehicle`
   are the intended reuse path for dispatch (P2).
 - Backend Python uses **tab indentation** (ruff-format enforced), matching Frappe.
-- Branch is `version-16`; PRs target `main`. CI spins up a fresh bench and runs
-  `run-tests` on push/PR.
+- Branch is `main` (remote: github.com/buildwithmoi/bwm_logistics). CI spins up a
+  fresh bench and runs `run-tests` on push/PR. Never add Co-Authored-By trailers to
+  commits; commits are authored as buildwithmoi.
