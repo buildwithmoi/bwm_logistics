@@ -81,9 +81,54 @@ def shipment_detail(name):
 			"Sales Invoice", shipment.sales_invoice,
 			["name", "status", "grand_total", "outstanding_amount", "currency"], as_dict=True,
 		)
+	# Proof of delivery (from the completed delivery-run stop, if any).
+	pod = frappe.get_all(
+		"Run Stop",
+		filters={"parenttype": "Delivery Run", "shipment": name, "status": "Completed"},
+		fields=["pod_receiver", "pod_time", "pod_photo", "pod_signature"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if pod:
+		out["pod"] = pod[0]
 	out.pop("customer", None)
 	out.pop("container", None)
 	return out
+
+
+@frappe.whitelist()
+def request_pickup(payload):
+	"""Customer books a pickup from the portal (FR-DEL-1)."""
+	customer = require_customer()
+	data = frappe.parse_json(payload) if isinstance(payload, str) else payload
+	if not (data.get("pickup_address") or "").strip():
+		frappe.throw(_("Please tell us where to pick up from."))
+	doc = frappe.get_doc(
+		{
+			"doctype": "Pickup Request",
+			"customer": customer,
+			"pickup_address": data.get("pickup_address"),
+			"contact_phone": data.get("contact_phone"),
+			"preferred_date": data.get("preferred_date") or None,
+			"time_window": data.get("time_window") or "Any time",
+			"notes": data.get("notes"),
+			"source": "Portal",
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def my_pickups():
+	customer = require_customer()
+	return frappe.get_all(
+		"Pickup Request",
+		filters={"customer": customer},
+		fields=["name", "status", "pickup_address", "preferred_date", "time_window", "shipment", "creation"],
+		order_by="creation desc",
+		limit=50,
+	)
 
 
 @frappe.whitelist()

@@ -43,6 +43,7 @@ const operatorPrimary: NavItem[] = [
 	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard, to: "/" },
 	{ key: "containers", label: "Containers", icon: Container, to: "/containers" },
 	{ key: "shipments", label: "Shipments", icon: Package, to: "/shipments" },
+	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
 	{ key: "customers", label: "Customers", icon: Users, to: "/customers" },
 	{ key: "billing", label: "Billing", icon: ReceiptText, to: "/billing" },
 ];
@@ -51,6 +52,7 @@ const operatorPrimary: NavItem[] = [
 const portalPrimary: NavItem[] = [
 	{ key: "portal", label: "My Portal", icon: LayoutDashboard, to: "/portal" },
 	{ key: "portal-shipments", label: "Shipments", icon: Package, to: "/portal/shipments" },
+	{ key: "portal-pickups", label: "Pickups", icon: Truck, to: "/portal/pickups" },
 	{ key: "portal-invoices", label: "Invoices", icon: ReceiptText, to: "/portal/invoices" },
 	{ key: "portal-profile", label: "Profile", icon: UserRound, to: "/portal/profile" },
 ];

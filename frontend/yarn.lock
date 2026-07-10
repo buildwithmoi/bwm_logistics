@@ -1126,6 +1126,11 @@ postcss@^8.4.47, postcss@^8.4.49, postcss@^8.5.15, postcss@^8.5.3:
     picocolors "^1.1.1"
     source-map-js "^1.2.1"
 
+qrcode-generator@^1.4.4:
+  version "1.5.2"
+  resolved "https://registry.yarnpkg.com/qrcode-generator/-/qrcode-generator-1.5.2.tgz#43faea8061a60d2b4ca5e9b0c0c0fb99e2d93e3a"
+  integrity sha512-pItrW0Z9HnDBnFmgiNrY1uxRdri32Uh9EjNYLPVC2zZ3ZRIIEqBoDgm4DkvDwNNDHTK7FNkmr8zAa77BYc9xNw==
+
 queue-microtask@^1.2.2:
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/queue-microtask/-/queue-microtask-1.2.3.tgz#4929228bbc724dfac43e0efb058caf7b6cfb6243"

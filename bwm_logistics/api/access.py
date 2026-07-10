@@ -38,6 +38,7 @@ OPERATOR_PAGES = [
 PORTAL_PAGES = [
 	{"key": "portal", "label": "My Portal"},
 	{"key": "portal-shipments", "label": "My Shipments"},
+	{"key": "portal-pickups", "label": "Pickups"},
 	{"key": "portal-invoices", "label": "Invoices"},
 	{"key": "portal-profile", "label": "Profile"},
 ]

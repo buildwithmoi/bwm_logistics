@@ -1,0 +1,138 @@
+{
+ "actions": [],
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "stop_type",
+  "shipment",
+  "pickup_request",
+  "status",
+  "address",
+  "contact_name",
+  "contact_phone",
+  "failure_reason",
+  "cod_section",
+  "cod_due",
+  "cod_collected",
+  "pod_section",
+  "pod_receiver",
+  "pod_time",
+  "pod_geo",
+  "pod_signature",
+  "pod_photo"
+ ],
+ "fields": [
+  {
+   "default": "Delivery",
+   "fieldname": "stop_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Delivery\nPickup",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shipment",
+   "options": "Shipment"
+  },
+  {
+   "fieldname": "pickup_request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pickup Request",
+   "options": "Pickup Request"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nArrived\nCompleted\nFailed"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Address"
+  },
+  {
+   "fieldname": "contact_name",
+   "fieldtype": "Data",
+   "label": "Contact"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Phone"
+  },
+  {
+   "fieldname": "failure_reason",
+   "fieldtype": "Data",
+   "label": "Failure Reason"
+  },
+  {
+   "fieldname": "cod_section",
+   "fieldtype": "Section Break",
+   "label": "Cash on Delivery"
+  },
+  {
+   "fieldname": "cod_due",
+   "fieldtype": "Currency",
+   "label": "COD Due"
+  },
+  {
+   "fieldname": "cod_collected",
+   "fieldtype": "Currency",
+   "label": "COD Collected"
+  },
+  {
+   "fieldname": "pod_section",
+   "fieldtype": "Section Break",
+   "label": "Proof of Delivery"
+  },
+  {
+   "fieldname": "pod_receiver",
+   "fieldtype": "Data",
+   "label": "Received By"
+  },
+  {
+   "fieldname": "pod_time",
+   "fieldtype": "Datetime",
+   "label": "POD Time"
+  },
+  {
+   "description": "lat,lng captured on completion",
+   "fieldname": "pod_geo",
+   "fieldtype": "Data",
+   "label": "Geo"
+  },
+  {
+   "fieldname": "pod_signature",
+   "fieldtype": "Attach",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "pod_photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Run Stop",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

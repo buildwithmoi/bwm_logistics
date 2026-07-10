@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Package, Flag, ReceiptText } from "lucide-vue-next";
+import { ArrowLeft, Package, Flag, ReceiptText, Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtMoney, fmtWeight, fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -127,6 +127,9 @@ async function makeInvoice() {
 						<span v-if="data.current_milestone"> · {{ data.current_milestone }}</span>
 					</p>
 				</div>
+				<Button variant="outline" @click="router.push(`/shipments/${name}/label`)">
+					<Printer class="h-4 w-4" /> Labels
+				</Button>
 				<Button v-if="canEdit" variant="outline" @click="eventOpen = true">
 					<Flag class="h-4 w-4" /> Record event
 				</Button>

@@ -17,7 +17,16 @@ except ImportError:  # older frappe
 def _make_customer(name):
 	if frappe.db.exists("Customer", {"customer_name": name}):
 		return frappe.db.get_value("Customer", {"customer_name": name}, "name")
-	doc = frappe.get_doc({"doctype": "Customer", "customer_name": name, "customer_type": "Individual"})
+	doc = frappe.get_doc(
+		{
+			"doctype": "Customer",
+			"customer_name": name,
+			"customer_type": "Individual",
+			# Explicit group/territory — CI sites have no Selling Settings defaults.
+			"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}) or "All Customer Groups",
+			"territory": frappe.db.get_value("Territory", {"is_group": 0}) or "All Territories",
+		}
+	)
 	doc.insert(ignore_permissions=True)
 	return doc.name
 
@@ -179,3 +188,119 @@ class TestAccess(IntegrationTestCase):
 		self.assertIn("containers", ops_pages)
 		self.assertNotIn("settings", ops_pages)
 		self.assertEqual(access.ROLE_PAGES["Logistics Customer"], access.PORTAL_KEYS)
+
+
+class TestDispatchFlow(IntegrationTestCase):
+	"""Pickup request → run with hydrated stops → start → POD complete →
+	pickup completed → finish. (COD→Payment Entry needs accounting setup and
+	is covered by p2_verify on a configured site, not in CI.)"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def _driver(self, email="test-driver@bwm.test", name="Test Driver"):
+		from bwm_logistics.api.dispatch import save_driver
+
+		return save_driver({"full_name": name, "email": email})
+
+	def test_run_lifecycle_with_pod(self):
+		customer = _make_customer("Dispatch Test Customer")
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"consignee_name": "Receiver X",
+				"delivery_address": "Test Street 5",
+				"packages": [{"description": "Box", "qty": 1}],
+			}
+		).insert(ignore_permissions=True)
+		frappe.get_doc(
+			{"doctype": "Tracking Event", "shipment": ship.name, "milestone": "Ready for Delivery", "notify": 0}
+		).insert(ignore_permissions=True)
+
+		pickup = frappe.get_doc(
+			{
+				"doctype": "Pickup Request",
+				"customer": customer,
+				"pickup_address": "Pickup Lane 1",
+				"source": "Portal",
+			}
+		).insert(ignore_permissions=True)
+
+		driver = self._driver()
+		from bwm_logistics.api import dispatch as dapi
+
+		run_name = dapi.save_run(
+			{
+				"driver": driver["name"],
+				"run_date": frappe.utils.nowdate(),
+				"stops": [
+					{"stop_type": "Delivery", "shipment": ship.name},
+					{"stop_type": "Pickup", "pickup_request": pickup.name},
+				],
+			}
+		)["name"]
+
+		run = frappe.get_doc("Delivery Run", run_name)
+		dstop = next(s for s in run.stops if s.stop_type == "Delivery")
+		pstop = next(s for s in run.stops if s.stop_type == "Pickup")
+		# hydration
+		self.assertEqual(dstop.address, "Test Street 5")
+		self.assertEqual(pstop.address, "Pickup Lane 1")
+		self.assertEqual(
+			frappe.db.get_value("Pickup Request", pickup.name, "status"), "Scheduled"
+		)
+
+		dapi.start_run(run_name)
+		self.assertEqual(
+			frappe.db.get_value("Shipment", ship.name, "current_milestone"), "Out for Delivery"
+		)
+
+		dapi.stop_arrived(run_name, dstop.name)
+		dapi.stop_complete(run_name, dstop.name, receiver="Receiver X", cod_collected=0)
+		dapi.stop_complete(run_name, pstop.name, receiver="Warehouse")
+		self.assertEqual(dapi.finish_run(run_name)["status"], "Completed")
+
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "status"), "Delivered")
+		self.assertEqual(
+			frappe.db.get_value("Pickup Request", pickup.name, "status"), "Completed"
+		)
+		run.reload()
+		self.assertEqual(run.completed_stops, 2)
+		self.assertEqual(dstop.name and run.stops[0].pod_receiver, "Receiver X")
+
+	def test_driver_scoping(self):
+		driver_a = self._driver()
+		self._driver(email="test-driver-b@bwm.test", name="Test Driver B")
+		customer = _make_customer("Dispatch Scope Customer")
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"packages": [{"description": "Box", "qty": 1}],
+			}
+		).insert(ignore_permissions=True)
+
+		from bwm_logistics.api import dispatch as dapi
+
+		run_name = dapi.save_run(
+			{
+				"driver": driver_a["name"],
+				"run_date": frappe.utils.nowdate(),
+				"stops": [{"stop_type": "Delivery", "shipment": ship.name}],
+			}
+		)["name"]
+
+		# driver B must not act on driver A's run
+		frappe.set_user("test-driver-b@bwm.test")
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				dapi.start_run(run_name)
+			self.assertEqual(dapi.list_runs()["rows"], [])
+		finally:
+			frappe.set_user("Administrator")

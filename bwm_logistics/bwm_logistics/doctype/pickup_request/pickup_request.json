@@ -1,0 +1,181 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "customer",
+  "customer_name",
+  "column_break_head",
+  "status",
+  "source",
+  "details_section",
+  "pickup_address",
+  "contact_phone",
+  "column_break_details",
+  "preferred_date",
+  "time_window",
+  "outcome_section",
+  "shipment",
+  "column_break_outcome",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "PKR-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "PKR-.YYYY.-"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Requested",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Requested\nScheduled\nCompleted\nCancelled"
+  },
+  {
+   "default": "Staff",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Portal\nStaff",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Pickup Details"
+  },
+  {
+   "fieldname": "pickup_address",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Pickup Address",
+   "reqd": 1
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "preferred_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Preferred Date"
+  },
+  {
+   "default": "Any time",
+   "fieldname": "time_window",
+   "fieldtype": "Select",
+   "label": "Time Window",
+   "options": "Any time\nMorning\nAfternoon\nEvening"
+  },
+  {
+   "fieldname": "outcome_section",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "description": "Set once the goods are received and a shipment is created.",
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "label": "Shipment",
+   "options": "Shipment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_outcome",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Pickup Request",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operations",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Logistics Driver"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

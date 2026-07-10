@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Package, ReceiptText } from "lucide-vue-next";
+import { ArrowLeft, Package, ReceiptText, CheckCircle2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
-import { fmtDate, fmtMoney, fmtWeight } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtMoney, fmtWeight } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import StatusBadge from "@/components/StatusBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
@@ -21,6 +21,7 @@ interface Detail extends Record<string, unknown> {
 	timeline: TimelineEvent[];
 	packages: Array<Record<string, unknown>>;
 	invoice?: { name: string; status: string; grand_total: number; outstanding_amount: number; currency: string };
+	pod?: { pod_receiver?: string; pod_time?: string; pod_photo?: string; pod_signature?: string };
 }
 const data = ref<Detail | null>(null);
 const loading = ref(true);
@@ -84,6 +85,22 @@ onMounted(async () => {
 				>
 					Pay now
 				</RouterLink>
+			</div>
+
+			<!-- Proof of delivery -->
+			<div
+				v-if="data.pod"
+				class="mb-4 rounded-3xl bg-emerald-50 p-5 ring-1 ring-emerald-200"
+			>
+				<div class="flex items-center gap-2 font-semibold text-emerald-800">
+					<CheckCircle2 class="h-5 w-5" /> Delivered
+					<span v-if="data.pod.pod_time" class="font-normal text-emerald-700">· {{ fmtDateTime(data.pod.pod_time) }}</span>
+				</div>
+				<div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-emerald-800">
+					<span v-if="data.pod.pod_receiver">Received by <b>{{ data.pod.pod_receiver }}</b></span>
+					<a v-if="data.pod.pod_photo" :href="data.pod.pod_photo" target="_blank" rel="noopener" class="font-medium underline underline-offset-2">View photo</a>
+					<a v-if="data.pod.pod_signature" :href="data.pod.pod_signature" target="_blank" rel="noopener" class="font-medium underline underline-offset-2">View signature</a>
+				</div>
 			</div>
 
 			<div class="grid gap-4 sm:grid-cols-5">

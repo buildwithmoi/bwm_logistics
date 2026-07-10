@@ -1,0 +1,232 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "run_date",
+  "status",
+  "column_break_head",
+  "driver",
+  "driver_name",
+  "vehicle",
+  "stops_section",
+  "stops",
+  "totals_section",
+  "total_stops",
+  "completed_stops",
+  "column_break_totals",
+  "cod_due_total",
+  "cod_collected_total",
+  "cod_section",
+  "cod_reconciled",
+  "column_break_cod",
+  "reconciled_by",
+  "reconciled_at",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "DRUN-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "DRUN-.YYYY.-"
+  },
+  {
+   "default": "Today",
+   "fieldname": "run_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Run Date",
+   "reqd": 1
+  },
+  {
+   "default": "Scheduled",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nScheduled\nIn Transit\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "driver",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Driver",
+   "options": "Driver",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "driver.full_name",
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Driver Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vehicle",
+   "fieldtype": "Link",
+   "label": "Vehicle",
+   "options": "Vehicle"
+  },
+  {
+   "fieldname": "stops_section",
+   "fieldtype": "Section Break",
+   "label": "Stops"
+  },
+  {
+   "fieldname": "stops",
+   "fieldtype": "Table",
+   "label": "Stops",
+   "options": "Run Stop"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_stops",
+   "fieldtype": "Int",
+   "label": "Total Stops",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_stops",
+   "fieldtype": "Int",
+   "label": "Completed Stops",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cod_due_total",
+   "fieldtype": "Currency",
+   "label": "COD Due (Total)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cod_collected_total",
+   "fieldtype": "Currency",
+   "label": "COD Collected (Total)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cod_section",
+   "fieldtype": "Section Break",
+   "label": "COD Reconciliation"
+  },
+  {
+   "default": "0",
+   "fieldname": "cod_reconciled",
+   "fieldtype": "Check",
+   "label": "Cash Received & Reconciled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cod",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reconciled_by",
+   "fieldtype": "Link",
+   "label": "Reconciled By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciled_at",
+   "fieldtype": "Datetime",
+   "label": "Reconciled At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Delivery Run",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operations",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Logistics Driver"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Accounts"
+  }
+ ],
+ "search_fields": "driver_name,run_date",
+ "sort_field": "run_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

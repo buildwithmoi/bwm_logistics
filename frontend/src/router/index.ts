@@ -22,7 +22,17 @@ const routes = [
 		name: "shipment-detail",
 		component: () => import("@/pages/ShipmentDetail.vue"),
 	},
+	{
+		path: "/shipments/:name/label",
+		name: "shipment-label",
+		component: () => import("@/pages/ShipmentLabel.vue"),
+	},
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
+	{
+		path: "/dispatch/:name",
+		name: "dispatch-run",
+		component: () => import("@/pages/DispatchRunDetail.vue"),
+	},
 	{ path: "/customers", name: "customers", component: () => import("@/pages/Customers.vue") },
 	{ path: "/billing", name: "billing", component: () => import("@/pages/Billing.vue") },
 	{
@@ -43,6 +53,11 @@ const routes = [
 		path: "/portal/shipments/:name",
 		name: "portal-shipment-detail",
 		component: () => import("@/pages/portal/PortalShipmentDetail.vue"),
+	},
+	{
+		path: "/portal/pickups",
+		name: "portal-pickups",
+		component: () => import("@/pages/portal/PortalPickups.vue"),
 	},
 	{
 		path: "/portal/invoices",
@@ -69,6 +84,8 @@ export const router = createRouter({
 const ACCESS_ALIAS: Record<string, string> = {
 	"container-detail": "containers",
 	"shipment-detail": "shipments",
+	"shipment-label": "shipments",
+	"dispatch-run": "dispatch",
 	"portal-shipment-detail": "portal-shipments",
 };
 
