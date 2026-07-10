@@ -3,7 +3,7 @@ name = "bwm_logistics"
 authors = [
     { name = "Build With Moi", email = "buildwithmoinow@gmail.com"}
 ]
-description = "Logistics Application"
+description = "Logistics"
 requires-python = ">=3.14"
 readme = "README.md"
 dynamic = ["version"]

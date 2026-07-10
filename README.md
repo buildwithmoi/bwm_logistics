@@ -1,6 +1,6 @@
 ### Bwm Logistics
 
-Logistics Application
+Logistics
 
 ### Installation
 

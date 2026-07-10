@@ -1,7 +1,7 @@
 app_name = "bwm_logistics"
 app_title = "Bwm Logistics"
 app_publisher = "Build With Moi"
-app_description = "Logistics Application"
+app_description = "Logistics"
 app_email = "buildwithmoinow@gmail.com"
 app_license = "mit"
 
