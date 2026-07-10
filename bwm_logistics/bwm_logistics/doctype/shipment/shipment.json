@@ -1,0 +1,289 @@
+{
+ "actions": [],
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "customer",
+  "customer_name",
+  "column_break_head",
+  "direction",
+  "status",
+  "current_milestone",
+  "column_break_head2",
+  "container",
+  "notify_customer",
+  "parties_section",
+  "shipper_name",
+  "shipper_phone",
+  "origin",
+  "column_break_parties",
+  "consignee_name",
+  "consignee_phone",
+  "destination",
+  "delivery_address",
+  "packages_section",
+  "packages",
+  "totals_section",
+  "total_packages",
+  "total_weight_kg",
+  "column_break_totals",
+  "total_volume_cbm",
+  "total_declared_value",
+  "charges_section",
+  "charges",
+  "total_charges",
+  "column_break_charges",
+  "sales_invoice",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Direction",
+   "options": "Import\nExport",
+   "reqd": 1
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nIn Transit\nArrived\nReady for Delivery\nDelivered\nCancelled"
+  },
+  {
+   "fieldname": "current_milestone",
+   "fieldtype": "Data",
+   "label": "Current Milestone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_head2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Tagging a container subscribes this customer to its milestone notifications.",
+   "fieldname": "container",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Container",
+   "options": "Container"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_customer",
+   "fieldtype": "Check",
+   "label": "Notify Customer"
+  },
+  {
+   "fieldname": "parties_section",
+   "fieldtype": "Section Break",
+   "label": "Parties & Route"
+  },
+  {
+   "fieldname": "shipper_name",
+   "fieldtype": "Data",
+   "label": "Shipper (Sender)"
+  },
+  {
+   "fieldname": "shipper_phone",
+   "fieldtype": "Data",
+   "label": "Shipper Phone"
+  },
+  {
+   "fieldname": "origin",
+   "fieldtype": "Data",
+   "label": "Origin"
+  },
+  {
+   "fieldname": "column_break_parties",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consignee_name",
+   "fieldtype": "Data",
+   "label": "Consignee (Receiver)"
+  },
+  {
+   "fieldname": "consignee_phone",
+   "fieldtype": "Data",
+   "label": "Consignee Phone"
+  },
+  {
+   "fieldname": "destination",
+   "fieldtype": "Data",
+   "label": "Destination"
+  },
+  {
+   "fieldname": "delivery_address",
+   "fieldtype": "Small Text",
+   "label": "Delivery Address"
+  },
+  {
+   "fieldname": "packages_section",
+   "fieldtype": "Section Break",
+   "label": "Packages"
+  },
+  {
+   "fieldname": "packages",
+   "fieldtype": "Table",
+   "label": "Packages",
+   "options": "Shipment Package"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_packages",
+   "fieldtype": "Int",
+   "label": "Total Packages",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_weight_kg",
+   "fieldtype": "Float",
+   "label": "Total Weight (kg)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_volume_cbm",
+   "fieldtype": "Float",
+   "label": "Total Volume (CBM)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_declared_value",
+   "fieldtype": "Currency",
+   "label": "Total Declared Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "charges_section",
+   "fieldtype": "Section Break",
+   "label": "Charges & Billing"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "Shipment Charge"
+  },
+  {
+   "fieldname": "total_charges",
+   "fieldtype": "Currency",
+   "label": "Total Charges",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_charges",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Shipment",
+ "naming_rule": "By script",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operations",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Accounts"
+  }
+ ],
+ "search_fields": "customer_name,consignee_name,container",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

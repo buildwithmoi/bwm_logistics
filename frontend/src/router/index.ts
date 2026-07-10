@@ -11,7 +11,17 @@ const routes = [
 	// ── Operator app ──────────────────────────────────────────────────────────
 	{ path: "/", name: "dashboard", component: () => import("@/pages/Dashboard.vue") },
 	{ path: "/containers", name: "containers", component: () => import("@/pages/Containers.vue") },
+	{
+		path: "/containers/:name",
+		name: "container-detail",
+		component: () => import("@/pages/ContainerDetail.vue"),
+	},
 	{ path: "/shipments", name: "shipments", component: () => import("@/pages/Shipments.vue") },
+	{
+		path: "/shipments/:name",
+		name: "shipment-detail",
+		component: () => import("@/pages/ShipmentDetail.vue"),
+	},
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
 	{ path: "/customers", name: "customers", component: () => import("@/pages/Customers.vue") },
 	{ path: "/billing", name: "billing", component: () => import("@/pages/Billing.vue") },
@@ -28,6 +38,11 @@ const routes = [
 		path: "/portal/shipments",
 		name: "portal-shipments",
 		component: () => import("@/pages/portal/PortalShipments.vue"),
+	},
+	{
+		path: "/portal/shipments/:name",
+		name: "portal-shipment-detail",
+		component: () => import("@/pages/portal/PortalShipmentDetail.vue"),
 	},
 	{
 		path: "/portal/invoices",
@@ -50,9 +65,12 @@ export const router = createRouter({
 	routes,
 });
 
-// Sub-pages that inherit a parent page's access key (none yet — detail pages
-// land here in P1, e.g. "container-detail" → "containers").
-const ACCESS_ALIAS: Record<string, string> = {};
+// Sub-pages that inherit a parent page's access key.
+const ACCESS_ALIAS: Record<string, string> = {
+	"container-detail": "containers",
+	"shipment-detail": "shipments",
+	"portal-shipment-detail": "portal-shipments",
+};
 
 // Preferred landing order when a navigation is denied — first allowed wins.
 const FALLBACK_ORDER = [

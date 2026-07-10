@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branding_section",
+  "business_name",
+  "logo",
+  "tracking_section",
+  "tracking_prefix",
+  "notifications_section",
+  "email_enabled",
+  "sms_enabled",
+  "column_break_notify",
+  "email_subject_template",
+  "email_body_template",
+  "sms_template"
+ ],
+ "fields": [
+  {
+   "fieldname": "branding_section",
+   "fieldtype": "Section Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "business_name",
+   "fieldtype": "Data",
+   "label": "Business Name"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "tracking_section",
+   "fieldtype": "Section Break",
+   "label": "Tracking"
+  },
+  {
+   "default": "BWM",
+   "description": "Shipment tracking numbers are generated as PREFIX-000001.",
+   "fieldname": "tracking_prefix",
+   "fieldtype": "Data",
+   "label": "Tracking Number Prefix"
+  },
+  {
+   "fieldname": "notifications_section",
+   "fieldtype": "Section Break",
+   "label": "Notifications"
+  },
+  {
+   "default": "1",
+   "fieldname": "email_enabled",
+   "fieldtype": "Check",
+   "label": "Send Email Notifications"
+  },
+  {
+   "default": "0",
+   "description": "Requires SMS Settings (gateway) to be configured on this site.",
+   "fieldname": "sms_enabled",
+   "fieldtype": "Check",
+   "label": "Send SMS Notifications"
+  },
+  {
+   "fieldname": "column_break_notify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Update on your shipment {tracking_no}: {milestone}",
+   "description": "Variables: {customer_name} {tracking_no} {milestone} {location} {business_name} {tracking_link}",
+   "fieldname": "email_subject_template",
+   "fieldtype": "Data",
+   "label": "Email Subject Template"
+  },
+  {
+   "default": "Hello {customer_name},\n\nYour shipment {tracking_no} has a new update: {milestone}{location_suffix}.\n\nTrack it any time: {tracking_link}\n\n— {business_name}",
+   "fieldname": "email_body_template",
+   "fieldtype": "Text",
+   "label": "Email Body Template"
+  },
+  {
+   "default": "{business_name}: shipment {tracking_no} update — {milestone}{location_suffix}. Track: {tracking_link}",
+   "fieldname": "sms_template",
+   "fieldtype": "Small Text",
+   "label": "SMS Template"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Logistics Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Logistics Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Logistics Operations"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

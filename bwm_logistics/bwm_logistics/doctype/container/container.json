@@ -1,0 +1,276 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "direction",
+  "status",
+  "current_milestone",
+  "column_break_head",
+  "container_no",
+  "container_type",
+  "milestone_template",
+  "voyage_section",
+  "shipping_line",
+  "vessel",
+  "voyage_no",
+  "column_break_voyage",
+  "bl_no",
+  "booking_no",
+  "seal_no",
+  "ports_section",
+  "port_of_loading",
+  "etd",
+  "atd",
+  "column_break_ports",
+  "port_of_discharge",
+  "eta",
+  "ata",
+  "customs_section",
+  "customs_status",
+  "column_break_customs",
+  "free_days",
+  "demurrage_start_date",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "CONT-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CONT-.YYYY.-"
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Direction",
+   "options": "Import\nExport",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "current_milestone",
+   "fieldtype": "Data",
+   "label": "Current Milestone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "ISO format: 4 letters + 7 digits (e.g. MSCU1234567). Leave blank until allocated.",
+   "fieldname": "container_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Container No"
+  },
+  {
+   "fieldname": "container_type",
+   "fieldtype": "Select",
+   "label": "Container Type",
+   "options": "\n20GP\n40GP\n40HC\n45HC\nReefer\nLCL / Groupage\nOther"
+  },
+  {
+   "description": "Defaults to the direction's default template.",
+   "fieldname": "milestone_template",
+   "fieldtype": "Link",
+   "label": "Milestone Template",
+   "options": "Milestone Template"
+  },
+  {
+   "fieldname": "voyage_section",
+   "fieldtype": "Section Break",
+   "label": "Voyage & Documents"
+  },
+  {
+   "fieldname": "shipping_line",
+   "fieldtype": "Link",
+   "label": "Shipping Line",
+   "options": "Shipping Line"
+  },
+  {
+   "fieldname": "vessel",
+   "fieldtype": "Data",
+   "label": "Vessel"
+  },
+  {
+   "fieldname": "voyage_no",
+   "fieldtype": "Data",
+   "label": "Voyage No"
+  },
+  {
+   "fieldname": "column_break_voyage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bl_no",
+   "fieldtype": "Data",
+   "label": "Master BL No"
+  },
+  {
+   "fieldname": "booking_no",
+   "fieldtype": "Data",
+   "label": "Booking No"
+  },
+  {
+   "fieldname": "seal_no",
+   "fieldtype": "Data",
+   "label": "Seal No"
+  },
+  {
+   "fieldname": "ports_section",
+   "fieldtype": "Section Break",
+   "label": "Ports & Dates"
+  },
+  {
+   "fieldname": "port_of_loading",
+   "fieldtype": "Link",
+   "label": "Port of Loading",
+   "options": "Port"
+  },
+  {
+   "fieldname": "etd",
+   "fieldtype": "Date",
+   "label": "ETD"
+  },
+  {
+   "fieldname": "atd",
+   "fieldtype": "Date",
+   "label": "ATD"
+  },
+  {
+   "fieldname": "column_break_ports",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "port_of_discharge",
+   "fieldtype": "Link",
+   "label": "Port of Discharge",
+   "options": "Port"
+  },
+  {
+   "fieldname": "eta",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "ETA"
+  },
+  {
+   "fieldname": "ata",
+   "fieldtype": "Date",
+   "label": "ATA"
+  },
+  {
+   "fieldname": "customs_section",
+   "fieldtype": "Section Break",
+   "label": "Customs & Demurrage"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "customs_status",
+   "fieldtype": "Select",
+   "label": "Customs Status",
+   "options": "Pending\nIn Progress\nCleared\nHeld"
+  },
+  {
+   "fieldname": "column_break_customs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "free_days",
+   "fieldtype": "Int",
+   "label": "Free Days"
+  },
+  {
+   "description": "Auto-set to ATA + free days when both are known; editable.",
+   "fieldname": "demurrage_start_date",
+   "fieldtype": "Date",
+   "label": "Demurrage Start"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Container",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operations",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Accounts"
+  }
+ ],
+ "search_fields": "container_no,bl_no,vessel",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "container_no",
+ "track_changes": 1
+}

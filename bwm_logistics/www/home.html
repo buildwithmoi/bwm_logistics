@@ -59,7 +59,32 @@
 		.hero h1 { font-size: clamp(32px, 5.5vw, 52px); line-height: 1.1; letter-spacing: -0.025em; font-weight: 780; max-width: 17ch; }
 		.hero h1 em { font-style: normal; color: var(--gold-400); }
 		.hero p.lede { margin: 20px 0 32px; max-width: 54ch; color: rgba(245,242,234,0.72); font-size: 17px; }
-		.hero .cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+		.hero .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+
+		/* Track widget */
+		.track-form { display: flex; gap: 10px; max-width: 480px; }
+		.track-form input {
+			flex: 1; min-width: 0; height: 46px; border-radius: 999px; border: 1px solid rgba(245,242,234,0.25);
+			background: rgba(255,255,255,0.06); color: #f5f2ea; padding: 0 20px; font-size: 14px;
+			font-family: inherit; transition: border-color .15s;
+		}
+		.track-form input::placeholder { color: rgba(245,242,234,0.4); }
+		.track-form input:focus { outline: none; border-color: var(--gold-400); }
+		.track-result {
+			margin-top: 16px; max-width: 480px; border-radius: 16px; background: #fff; color: var(--ink);
+			padding: 18px 20px; font-size: 14px;
+		}
+		.track-result .tr-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+		.track-result .tr-no { font-weight: 700; }
+		.track-result .tr-status {
+			display: inline-block; border-radius: 999px; background: rgba(184,134,11,0.12); color: var(--gold-700);
+			padding: 2px 11px; font-size: 11.5px; font-weight: 700;
+		}
+		.track-result ul { list-style: none; padding: 0; margin: 0; }
+		.track-result li { display: flex; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); }
+		.track-result li:first-child { border-top: 0; }
+		.track-result .tr-when { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 108px; font-variant-numeric: tabular-nums; }
+		.track-result .tr-miss { color: var(--muted); }
 		.hero .stats { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 54px; }
 		.hero .stat b { display: block; font-size: 24px; letter-spacing: -0.02em; color: var(--gold-400); font-variant-numeric: tabular-nums; }
 		.hero .stat span { font-size: 13px; color: rgba(245,242,234,0.55); }
@@ -144,8 +169,13 @@
 			<p class="lede">
 				{{ _("We consolidate your goods into secure containers, clear them, and deliver to your door — and you can follow every milestone online, get notified automatically, and pay without leaving home.") }}
 			</p>
+			<!-- Guest track widget (FR-WEB-3): calls the public tracking API. -->
+			<form id="trackForm" class="track-form" autocomplete="off">
+				<input id="trackInput" type="text" placeholder="{{ _('Enter tracking number, e.g. BWM-000001') }}" aria-label="{{ _('Tracking number') }}" />
+				<button class="btn btn-gold" type="submit" id="trackBtn">{{ _("Track") }}</button>
+			</form>
+			<div id="trackResult" class="track-result" hidden></div>
 			<div class="cta-row">
-				<a class="btn btn-gold" href="{{ login_url }}">{{ _("Track my shipment") }}</a>
 				<a class="btn btn-outline" href="#services">{{ _("Our services") }}</a>
 			</div>
 			<div class="stats">
@@ -243,5 +273,66 @@
 			<a href="{{ login_url }}" style="color: var(--gold-400);">{{ _("Customer portal") }}</a>
 		</div>
 	</footer>
+
+	<script>
+		// Guest tracking — public API, no login needed (rate-limited server-side).
+		(function () {
+			var form = document.getElementById("trackForm");
+			var input = document.getElementById("trackInput");
+			var btn = document.getElementById("trackBtn");
+			var out = document.getElementById("trackResult");
+
+			function esc(s) {
+				var d = document.createElement("div");
+				d.textContent = s == null ? "" : String(s);
+				return d.innerHTML;
+			}
+			function fmt(dt) {
+				try {
+					return new Date(String(dt).replace(" ", "T")).toLocaleString(undefined, {
+						day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+					});
+				} catch (e) { return dt; }
+			}
+
+			form.addEventListener("submit", function (ev) {
+				ev.preventDefault();
+				var no = (input.value || "").trim();
+				if (!no) return;
+				btn.disabled = true;
+				btn.textContent = "{{ _('Tracking…') }}";
+				fetch("/api/method/bwm_logistics.api.track.track?tracking_no=" + encodeURIComponent(no), {
+					headers: { Accept: "application/json" },
+				})
+					.then(function (r) { return r.json(); })
+					.then(function (data) {
+						var m = data.message || {};
+						out.hidden = false;
+						if (!m.found) {
+							out.innerHTML = '<span class="tr-miss">{{ _("No shipment found for that number — check it and try again, or log in to see all your shipments.") }}</span>';
+							return;
+						}
+						var rows = (m.timeline || []).map(function (e) {
+							return "<li><span class=\"tr-when\">" + esc(fmt(e.event_datetime)) + "</span><span>" +
+								esc(e.milestone) + (e.location ? " · " + esc(e.location) : "") + "</span></li>";
+						}).join("");
+						out.innerHTML =
+							'<div class="tr-head"><span class="tr-no">' + esc(m.tracking_no) + "</span>" +
+							'<span class="tr-status">' + esc(m.status || "") + "</span>" +
+							(m.destination ? '<span style="color:var(--muted);font-size:13px;">→ ' + esc(m.destination) + "</span>" : "") +
+							"</div>" +
+							(rows ? "<ul>" + rows + "</ul>" : '<span class="tr-miss">{{ _("No milestones recorded yet.") }}</span>');
+					})
+					.catch(function () {
+						out.hidden = false;
+						out.innerHTML = '<span class="tr-miss">{{ _("Tracking is unavailable right now — please try again shortly.") }}</span>';
+					})
+					.finally(function () {
+						btn.disabled = false;
+						btn.textContent = "{{ _('Track') }}";
+					});
+			});
+		})();
+	</script>
 </body>
 </html>

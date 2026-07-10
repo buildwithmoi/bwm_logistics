@@ -1,0 +1,156 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "event_datetime",
+  "milestone",
+  "column_break_head",
+  "container",
+  "shipment",
+  "details_section",
+  "location",
+  "source",
+  "notify",
+  "notified",
+  "column_break_details",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "default": "TRK-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "TRK-.YYYY.-"
+  },
+  {
+   "default": "Now",
+   "fieldname": "event_datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "When",
+   "reqd": 1
+  },
+  {
+   "fieldname": "milestone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Milestone",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "container",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Container",
+   "options": "Container"
+  },
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Shipment",
+   "options": "Shipment"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "label": "Location"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Manual\nSystem\nAPI",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "description": "Send email/SMS to the tagged customer(s) for this event.",
+   "fieldname": "notify",
+   "fieldtype": "Check",
+   "label": "Notify Customers"
+  },
+  {
+   "default": "0",
+   "fieldname": "notified",
+   "fieldtype": "Check",
+   "label": "Notifications Dispatched",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "in_create": 0,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Tracking Event",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Manager",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Logistics Operations",
+   "share": 1
+  },
+  {
+   "read": 1,
+   "role": "Logistics Accounts"
+  }
+ ],
+ "sort_field": "event_datetime",
+ "sort_order": "DESC",
+ "states": []
+}

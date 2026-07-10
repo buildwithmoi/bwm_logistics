@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Container, Package, ReceiptText, Truck, ArrowRight } from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import { Container, Package, ReceiptText, CalendarClock, ArrowRight, Activity } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "@/stores/session";
+import { call } from "@/lib/frappe";
+import { fmtDateTime } from "@/lib/format";
 
-// Operator landing — bento-grid dashboard (ex_beauty pattern). P0 renders the
-// layout with empty KPIs; P1 wires them to api/dashboard aggregates.
+// Operator landing — bento dashboard wired to api/dashboard.get_overview.
 const session = useSessionStore();
 
 const firstName = computed(
@@ -17,12 +18,37 @@ const today = new Date().toLocaleDateString(undefined, {
 	day: "numeric",
 });
 
-const tiles = [
-	{ label: "Containers in transit", value: 0, icon: Container, accent: "#b8860b", to: "/containers" },
-	{ label: "Active shipments", value: 0, icon: Package, accent: "#0891b2", to: "/shipments" },
-	{ label: "Unpaid invoices", value: 0, icon: ReceiptText, accent: "#a855f7", to: "/billing" },
-	{ label: "Deliveries today", value: 0, icon: Truck, accent: "#10b981", to: "/dispatch" },
-];
+interface Overview {
+	containers_active: number;
+	arriving_soon: number;
+	active_shipments: number;
+	unpaid_invoices: number;
+	recent_events: Array<{
+		name: string;
+		event_datetime: string;
+		milestone: string;
+		location?: string;
+		container?: string;
+		shipment?: string;
+	}>;
+}
+const data = ref<Overview | null>(null);
+const loading = ref(true);
+
+onMounted(async () => {
+	try {
+		data.value = await call<Overview>("bwm_logistics.api.dashboard.get_overview");
+	} finally {
+		loading.value = false;
+	}
+});
+
+const tiles = computed(() => [
+	{ label: "Containers active", value: data.value?.containers_active ?? "…", icon: Container, accent: "#b8860b", to: "/containers" },
+	{ label: "Arriving in 7 days", value: data.value?.arriving_soon ?? "…", icon: CalendarClock, accent: "#0891b2", to: "/containers" },
+	{ label: "Active shipments", value: data.value?.active_shipments ?? "…", icon: Package, accent: "#a855f7", to: "/shipments" },
+	{ label: "Unpaid invoices", value: data.value?.unpaid_invoices ?? "…", icon: ReceiptText, accent: "#10b981", to: "/billing" },
+]);
 </script>
 
 <template>
@@ -61,22 +87,62 @@ const tiles = [
 			</RouterLink>
 		</div>
 
-		<!-- Getting-started ribbon (P0: the operational pages arrive with P1) -->
-		<div class="mt-4 flex flex-wrap items-center gap-6 rounded-3xl bg-gray-900 p-7 text-white">
-			<div class="min-w-0 flex-1">
-				<h2 class="text-lg font-semibold tracking-tight text-white">Foundation is live</h2>
-				<p class="mt-1 max-w-xl text-sm text-white/60">
-					Roles, access control, the public site, and this shell are in place.
-					Containers, shipments, customer tagging, and notifications arrive with
-					the MVP phase.
-				</p>
+		<!-- Activity feed -->
+		<div class="mt-4 grid gap-4 lg:grid-cols-12">
+			<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 lg:col-span-7">
+				<div class="mb-4 flex items-center gap-2">
+					<Activity class="h-4 w-4 text-brand-600" />
+					<h2 class="text-[15px] font-semibold tracking-tight">Latest milestones</h2>
+				</div>
+				<div v-if="loading" class="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+				<div v-else-if="!data?.recent_events?.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
+					No activity yet — create a container and record its first milestone.
+				</div>
+				<ul v-else class="divide-y divide-gray-100">
+					<li v-for="e in data.recent_events" :key="e.name" class="flex items-baseline gap-3 py-2.5">
+						<span class="w-32 shrink-0 text-xs tabular-nums text-muted-foreground">{{ fmtDateTime(e.event_datetime) }}</span>
+						<span class="min-w-0 flex-1 truncate">
+							<span class="font-medium">{{ e.milestone }}</span>
+							<span v-if="e.location" class="text-muted-foreground"> · {{ e.location }}</span>
+						</span>
+						<RouterLink
+							v-if="e.shipment"
+							:to="`/shipments/${e.shipment}`"
+							class="shrink-0 text-xs font-medium text-brand-700 hover:underline"
+						>{{ e.shipment }}</RouterLink>
+						<RouterLink
+							v-else-if="e.container"
+							:to="`/containers/${e.container}`"
+							class="shrink-0 text-xs font-medium text-brand-700 hover:underline"
+						>{{ e.container }}</RouterLink>
+					</li>
+				</ul>
 			</div>
-			<RouterLink
-				to="/settings"
-				class="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-coal-900 transition-colors hover:bg-brand-400"
-			>
-				Review settings <ArrowRight class="h-4 w-4" />
-			</RouterLink>
+
+			<!-- Quick actions ribbon -->
+			<div class="flex flex-col justify-between gap-6 rounded-3xl bg-gray-900 p-7 text-white lg:col-span-5">
+				<div>
+					<h2 class="text-lg font-semibold tracking-tight text-white">Move something today</h2>
+					<p class="mt-1 text-sm text-white/60">
+						Create a container, tag your customers' shipments to it, and every
+						milestone you record notifies them automatically.
+					</p>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<RouterLink
+						to="/containers"
+						class="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-coal-900 transition-colors hover:bg-brand-400"
+					>
+						New container <ArrowRight class="h-4 w-4" />
+					</RouterLink>
+					<RouterLink
+						to="/shipments"
+						class="inline-flex items-center gap-2 rounded-full border border-white/25 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:border-brand-400 hover:text-brand-300"
+					>
+						New shipment
+					</RouterLink>
+				</div>
+			</div>
 		</div>
 	</div>
 </template>
