@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		/* Gold / black / white identity: white surfaces, warm-neutral grays
+		   (hue nudged toward gold ≈ 43 so neutrals read chosen, not default),
+		   near-black ink, one gold accent. */
+		--background: 40 20% 98%;
+		--foreground: 40 14% 8%;
+		--card: 0 0% 100%;
+		--card-foreground: 40 14% 8%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 40 14% 8%;
+		/* Primary action = gold accent (brand-600) for a premium solid CTA. */
+		--primary: 43 89% 38%;
+		--primary-foreground: 48 100% 98%;
+		--secondary: 42 16% 95%;
+		--secondary-foreground: 40 14% 15%;
+		--muted: 42 16% 95%;
+		--muted-foreground: 40 8% 40%;
+		--accent: 42 16% 95%;
+		--accent-foreground: 40 14% 15%;
+		--destructive: 0 72% 51%;
+		--destructive-foreground: 0 0% 100%;
+		--border: 42 18% 88%;
+		--input: 42 16% 85%;
+		--ring: 43 89% 38%;
+		--radius: 0.5rem;
+	}
+
+	.dark {
+		--background: 40 8% 5%;
+		--foreground: 42 20% 95%;
+		--card: 40 8% 5%;
+		--card-foreground: 42 20% 95%;
+		--popover: 40 8% 5%;
+		--popover-foreground: 42 20% 95%;
+		--primary: 43 67% 50%;
+		--primary-foreground: 40 14% 8%;
+		--secondary: 40 6% 15%;
+		--secondary-foreground: 42 20% 95%;
+		--muted: 40 6% 15%;
+		--muted-foreground: 40 8% 62%;
+		--accent: 40 6% 15%;
+		--accent-foreground: 42 20% 95%;
+		--destructive: 0 62.8% 30.6%;
+		--destructive-foreground: 0 0% 98%;
+		--border: 40 6% 15%;
+		--input: 40 6% 15%;
+		--ring: 43 67% 50%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	body {
+		@apply bg-background text-foreground antialiased;
+		font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
+	/* Headings read as calm, slightly tightened ink. */
+	h1, h2, h3, h4 {
+		@apply tracking-tight text-foreground;
+	}
+}
+
+@layer components {
+	/* The small uppercase gray field/section label used throughout (forms,
+	   table headers, detail panels). Reusable utility so the look stays
+	   consistent without changing primitive prop APIs. */
+	.label-caps {
+		@apply text-[11px] font-semibold uppercase tracking-wider text-muted-foreground;
+	}
+}

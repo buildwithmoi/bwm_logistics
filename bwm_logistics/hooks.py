@@ -56,8 +56,9 @@ app_license = "mit"
 # Home Pages
 # ----------
 
-# application home page (will override Website Settings)
-# home_page = "login"
+# Public marketing landing page (www/home.html). Customers reach the portal
+# login from here; making it the website home overrides Website Settings.
+home_page = "home"
 
 # website user home page (by Role)
 # role_home_page = {
@@ -86,7 +87,9 @@ app_license = "mit"
 # ------------
 
 # before_install = "bwm_logistics.install.before_install"
-# after_install = "bwm_logistics.install.after_install"
+# Idempotent role setup; also wired to after_migrate so deployments self-heal.
+after_install = "bwm_logistics.install.after_install"
+after_migrate = ["bwm_logistics.install.after_install"]
 
 # Uninstallation
 # ------------
@@ -256,3 +259,5 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+website_route_rules = [{'from_route': '/logistics/<path:app_path>', 'to_route': 'logistics'},]

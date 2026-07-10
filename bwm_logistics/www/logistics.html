@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="{{ frappe.local.lang }}">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>{{ _("BWM Logistics") }}</title>
+	{%- if entry_css %}
+	<link rel="stylesheet" href="{{ entry_css }}" />
+	{%- endif %}
+	<style>
+		html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; }
+		#app { min-height: 100vh; }
+		.bwm-bootstrap-fallback {
+			display: flex; align-items: center; justify-content: center;
+			min-height: 100vh; font-family: system-ui, sans-serif; color: #4b5563;
+			padding: 2rem; text-align: center;
+		}
+	</style>
+</head>
+<body>
+	<div id="app"></div>
+
+	{# Bootstrap context for the SPA: CSRF for write calls + the bootinfo
+	   so the Vue session store can read `window.frappe.boot.user` without
+	   an extra round-trip on first render. #}
+	<script>
+		window.csrf_token = "{{ csrf_token }}";
+		window.frappe = window.frappe || {};
+		try {
+			window.frappe.boot = {{ boot_json | safe }};
+		} catch (e) {
+			window.frappe.boot = {};
+		}
+	</script>
+
+	{%- if entry_js %}
+	<script type="module" src="{{ entry_js }}"></script>
+	{%- else %}
+	<div class="bwm-bootstrap-fallback">
+		<div>
+			<h2>BWM Logistics</h2>
+			<p>The frontend bundle hasn't been built yet.</p>
+			<pre style="background:#f5f2e8;padding:0.75rem;border-radius:6px;">cd apps/bwm_logistics/frontend &amp;&amp; yarn install &amp;&amp; yarn build</pre>
+		</div>
+	</div>
+	{%- endif %}
+</body>
+</html>

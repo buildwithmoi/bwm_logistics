@@ -1,0 +1,11 @@
+{
+  "name": "bwm_logistics",
+  "version": "1.0.0",
+  "description": "Logistics",
+  "scripts": {
+    "postinstall": "cd frontend && yarn install",
+    "build": "cd frontend && yarn build",
+    "dev": "cd frontend && yarn dev"
+  },
+  "license": "MIT"
+}
