@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import { Save, Copy } from "lucide-vue-next";
+import { Save, Copy, UserPlus, ShieldCheck, Plus, Trash2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
+import Dialog from "@/components/ui/Dialog.vue";
 
 const toast = useToast();
 const session = useSessionStore();
@@ -49,7 +50,145 @@ onMounted(async () => {
 	} finally {
 		loading.value = false;
 	}
+	loadStaff();
+	loadRoles();
 });
+
+// ── staff & roles ───────────────────────────────────────────────────────────
+interface StaffRow {
+	name: string;
+	full_name?: string;
+	bwm_logistics_role?: string | null;
+	is_driver?: boolean;
+	is_super?: boolean;
+}
+interface RoleRow {
+	name: string;
+	role_name: string;
+	is_admin: number;
+	all_pages: number;
+	pages: string[];
+	members: number;
+}
+const staff = ref<StaffRow[]>([]);
+const roles = ref<RoleRow[]>([]);
+const pageCatalog = ref<Array<{ key: string; label: string }>>([]);
+
+async function loadStaff() {
+	try {
+		staff.value = await call<StaffRow[]>("bwm_logistics.api.staff.list_staff");
+	} catch {
+		/* section hidden for non-managers anyway */
+	}
+}
+async function loadRoles() {
+	try {
+		const res = await call<{ pages: Array<{ key: string; label: string }>; roles: RoleRow[] }>(
+			"bwm_logistics.api.staff.list_roles",
+		);
+		pageCatalog.value = res.pages;
+		roles.value = res.roles;
+	} catch {
+		/* ignore */
+	}
+}
+
+// staff creation
+const staffOpen = ref(false);
+const staffSaving = ref(false);
+const staffForm = reactive({ full_name: "", email: "", logistics_role: "" });
+async function createStaff() {
+	if (!staffForm.full_name || !staffForm.email) {
+		toast.warning("Name and email are required");
+		return;
+	}
+	staffSaving.value = true;
+	try {
+		await call("bwm_logistics.api.staff.create_staff", {
+			full_name: staffForm.full_name,
+			email: staffForm.email,
+			logistics_role: staffForm.logistics_role || null,
+		});
+		toast.success("Staff created — set-password email sent");
+		staffOpen.value = false;
+		staffForm.full_name = "";
+		staffForm.email = "";
+		await Promise.all([loadStaff(), loadRoles()]);
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not create staff");
+	} finally {
+		staffSaving.value = false;
+	}
+}
+
+async function changeRole(user: StaffRow, role: string) {
+	try {
+		await call("bwm_logistics.api.staff.assign_role", {
+			user: user.name,
+			logistics_role: role || null,
+		});
+		user.bwm_logistics_role = role || null;
+		toast.success(`Role updated for ${user.full_name || user.name}`);
+		await loadRoles();
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not update role");
+		await loadStaff();
+	}
+}
+
+// role editor
+const roleOpen = ref(false);
+const roleSaving = ref(false);
+const roleForm = reactive<{ name?: string; role_name: string; is_admin: number; all_pages: number; pages: Set<string> }>(
+	{ role_name: "", is_admin: 0, all_pages: 0, pages: new Set() },
+);
+function openRole(role?: RoleRow) {
+	Object.assign(roleForm, {
+		name: role?.name,
+		role_name: role?.role_name || "",
+		is_admin: role?.is_admin || 0,
+		all_pages: role?.all_pages || 0,
+		pages: new Set(role?.pages || []),
+	});
+	roleOpen.value = true;
+}
+async function saveRole() {
+	if (!roleForm.role_name.trim()) {
+		toast.warning("Name the role");
+		return;
+	}
+	roleSaving.value = true;
+	try {
+		await call("bwm_logistics.api.staff.save_role", {
+			payload: {
+				name: roleForm.name,
+				role_name: roleForm.role_name,
+				is_admin: roleForm.is_admin,
+				all_pages: roleForm.all_pages,
+				pages: [...roleForm.pages],
+			},
+		});
+		toast.success("Role saved");
+		roleOpen.value = false;
+		await Promise.all([loadRoles(), loadStaff()]);
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not save role");
+	} finally {
+		roleSaving.value = false;
+	}
+}
+async function deleteRole(role: RoleRow) {
+	try {
+		await call("bwm_logistics.api.staff.delete_role", { name: role.name });
+		toast.info(`Deleted ${role.role_name}`);
+		await loadRoles();
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not delete role");
+	}
+}
+function togglePage(key: string) {
+	roleForm.pages.has(key) ? roleForm.pages.delete(key) : roleForm.pages.add(key);
+}
 
 async function save() {
 	saving.value = true;
@@ -197,6 +336,74 @@ async function copyWebhook() {
 				</div>
 			</section>
 
+			<!-- Staff & Roles -->
+			<section v-if="canEdit" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<div class="mb-4 flex flex-wrap items-center gap-2">
+					<h2 class="label-caps min-w-0 flex-1">Staff & roles</h2>
+					<Button size="sm" variant="outline" @click="openRole()"><ShieldCheck class="h-4 w-4" /> New role</Button>
+					<Button size="sm" @click="staffOpen = true"><UserPlus class="h-4 w-4" /> Add staff</Button>
+				</div>
+
+				<!-- Roles -->
+				<div class="mb-5 flex flex-wrap gap-2">
+					<div
+						v-for="r in roles"
+						:key="r.name"
+						class="group flex items-center gap-2.5 rounded-xl border border-gray-150 px-3.5 py-2.5"
+					>
+						<span class="text-sm font-medium">{{ r.role_name }}</span>
+						<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10.5px] font-semibold text-gray-500">
+							{{ r.is_admin ? "ADMIN" : r.all_pages ? "ALL PAGES" : `${r.pages.length} pages` }}
+						</span>
+						<span class="text-xs text-muted-foreground tabular-nums">{{ r.members }} member(s)</span>
+						<button type="button" class="text-xs font-medium text-brand-700 opacity-0 transition-opacity hover:underline group-hover:opacity-100" @click="openRole(r)">Edit</button>
+						<button
+							v-if="!r.members"
+							type="button"
+							class="text-gray-300 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+							@click="deleteRole(r)"
+						>
+							<Trash2 class="h-3.5 w-3.5" />
+						</button>
+					</div>
+				</div>
+
+				<!-- Staff list -->
+				<div class="overflow-x-auto">
+					<table class="w-full min-w-[560px] text-sm">
+						<thead>
+							<tr class="text-left">
+								<th class="label-caps pb-2 pr-4">Staff</th>
+								<th class="label-caps pb-2 pr-4">Email</th>
+								<th class="label-caps pb-2">Role</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="u in staff" :key="u.name" class="border-t border-gray-100">
+								<td class="py-2.5 pr-4 font-medium">
+									{{ u.full_name || u.name }}
+									<span v-if="u.is_super" class="ml-1 rounded-full bg-brand-600/10 px-2 py-0.5 text-[10px] font-bold text-brand-700">MANAGER</span>
+									<span v-else-if="u.is_driver" class="ml-1 rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700">DRIVER</span>
+								</td>
+								<td class="py-2.5 pr-4 text-muted-foreground">{{ u.name }}</td>
+								<td class="py-2.5">
+									<span v-if="u.is_super || u.is_driver" class="text-xs text-muted-foreground">
+										{{ u.is_super ? "Full access" : "Dispatch (own runs)" }}
+									</span>
+									<Select
+										v-else
+										:model-value="u.bwm_logistics_role || ''"
+										:options="[{ value: '', label: 'Default (by base role)' }, ...roles.map((r) => ({ value: r.name, label: r.role_name }))]"
+										class="max-w-52"
+										@update:model-value="(v) => changeRole(u, v)"
+									/>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
 			<!-- Website -->
 			<section class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
 				<h2 class="label-caps mb-4">Public website</h2>
@@ -226,5 +433,82 @@ async function copyWebhook() {
 				</div>
 			</section>
 		</div>
+
+		<!-- ── Add staff dialog ─────────────────────────────────────────── -->
+		<Dialog v-model:open="staffOpen" title="Add staff member">
+			<div class="space-y-4">
+				<div class="space-y-1.5">
+					<Label required>Full name</Label>
+					<Input v-model="staffForm.full_name" placeholder="e.g. Efua Mensah" />
+				</div>
+				<div class="space-y-1.5">
+					<Label required>Email</Label>
+					<Input v-model="staffForm.email" type="email" placeholder="staff@example.com" />
+					<p class="text-xs text-muted-foreground">They'll receive an email with a link to set their own password.</p>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Role</Label>
+					<Select
+						v-model="staffForm.logistics_role"
+						:options="[{ value: '', label: 'Default (Operations)' }, ...roles.map((r) => ({ value: r.name, label: r.role_name }))]"
+					/>
+				</div>
+			</div>
+			<template #footer>
+				<div class="flex justify-end gap-2">
+					<Button variant="outline" @click="staffOpen = false">Cancel</Button>
+					<Button :loading="staffSaving" @click="createStaff">Create & invite</Button>
+				</div>
+			</template>
+		</Dialog>
+
+		<!-- ── Role editor dialog ───────────────────────────────────────── -->
+		<Dialog v-model:open="roleOpen" :title="roleForm.name ? 'Edit role' : 'New role'" size="wide">
+			<div class="space-y-4">
+				<div class="space-y-1.5">
+					<Label required>Role name</Label>
+					<Input v-model="roleForm.role_name" placeholder="e.g. Front Desk" />
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<label
+						class="flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium"
+						:class="roleForm.is_admin ? 'border-brand-400 bg-brand-50 text-brand-800' : 'border-gray-200 text-gray-600'"
+					>
+						<input type="checkbox" class="h-4 w-4 rounded accent-[#b8860b]" :checked="!!roleForm.is_admin" @change="roleForm.is_admin = roleForm.is_admin ? 0 : 1" />
+						Administrator (everything + Settings)
+					</label>
+					<label
+						class="flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium"
+						:class="roleForm.all_pages ? 'border-brand-400 bg-brand-50 text-brand-800' : 'border-gray-200 text-gray-600'"
+					>
+						<input type="checkbox" class="h-4 w-4 rounded accent-[#b8860b]" :checked="!!roleForm.all_pages" :disabled="!!roleForm.is_admin" @change="roleForm.all_pages = roleForm.all_pages ? 0 : 1" />
+						All pages (except Settings)
+					</label>
+				</div>
+				<div v-if="!roleForm.is_admin && !roleForm.all_pages" class="space-y-1.5">
+					<Label>Pages this role can see</Label>
+					<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+						<label
+							v-for="p in pageCatalog"
+							:key="p.key"
+							class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+							:class="roleForm.pages.has(p.key) ? 'border-brand-400 bg-brand-50' : 'border-gray-150 hover:bg-gray-50'"
+						>
+							<input type="checkbox" class="h-4 w-4 rounded accent-[#b8860b]" :checked="roleForm.pages.has(p.key)" @change="togglePage(p.key)" />
+							{{ p.label }}
+						</label>
+					</div>
+					<p class="text-xs text-muted-foreground">
+						Billing or Reports also unlocks the payment-recording APIs for this role.
+					</p>
+				</div>
+			</div>
+			<template #footer>
+				<div class="flex justify-end gap-2">
+					<Button variant="outline" @click="roleOpen = false">Cancel</Button>
+					<Button :loading="roleSaving" @click="saveRole">Save role</Button>
+				</div>
+			</template>
+		</Dialog>
 	</div>
 </template>

@@ -423,6 +423,64 @@ class TestRateCards(IntegrationTestCase):
 		self.assertEqual(light_charges["Freight"], 100)
 
 
+class TestLogisticsRoles(IntegrationTestCase):
+	"""Admin-managed role resolution (CI-safe)."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def test_role_resolution_and_gate_sync(self):
+		import json
+
+		from bwm_logistics.api import access, staff
+
+		frappe.get_doc(
+			{
+				"doctype": "Logistics Role",
+				"role_name": "CI Test Role",
+				"pages": json.dumps(["dashboard", "shipments"]),
+			}
+		).insert(ignore_permissions=True)
+
+		email = "ci-role-user@bwm.test"
+		if not frappe.db.exists("User", email):
+			user = frappe.new_doc("User")
+			user.email = email
+			user.first_name = "CI"
+			user.user_type = "Website User"
+			user.send_welcome_email = 0
+			user.insert(ignore_permissions=True)
+		staff.assign_role(email, "CI Test Role")
+
+		perms = access.user_perms(email)
+		self.assertEqual(set(perms), {"dashboard", "shipments"})
+		self.assertIn("Logistics Operations", frappe.get_roles(email))
+		self.assertNotIn("Logistics Accounts", frappe.get_roles(email))
+
+		# billing page unlocks the Accounts gate
+		staff.save_role({"role_name": "CI Test Role", "pages": ["dashboard", "shipments", "billing"]})
+		self.assertIn("Logistics Accounts", frappe.get_roles(email))
+		self.assertIn("billing", access.user_perms(email))
+
+	def test_settings_never_leaks_to_non_admin_role(self):
+		import json
+
+		from bwm_logistics.api import access, staff
+
+		# Even if someone force-writes settings into the JSON, validate strips it.
+		doc = frappe.get_doc(
+			{
+				"doctype": "Logistics Role",
+				"role_name": "CI Sneaky Role",
+				"pages": json.dumps(["settings", "dashboard"]),
+			}
+		).insert(ignore_permissions=True)
+		self.assertNotIn("settings", doc.page_keys())
+
+
 class TestReportsAndBranches(IntegrationTestCase):
 	"""CI-safe P5 checks — no accounting involved."""
 

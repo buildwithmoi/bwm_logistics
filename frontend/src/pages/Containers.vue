@@ -11,6 +11,7 @@ import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -83,12 +84,12 @@ const form = reactive({
 	direction: "Import",
 	container_no: "",
 	container_type: "",
-	shipping_line: "",
+	shipping_line: "" as string | null,
 	vessel: "",
 	bl_no: "",
 	booking_no: "",
-	port_of_loading: "",
-	port_of_discharge: "",
+	port_of_loading: "" as string | null,
+	port_of_discharge: "" as string | null,
 	etd: "",
 	eta: "",
 	free_days: "",
@@ -109,15 +110,34 @@ async function openDialog() {
 	}
 }
 
-// Inline quick-add for Shipping Line / Port (FR: masters shouldn't block flow).
-async function quickAdd(doctype: "Shipping Line" | "Port", field: "shipping_line" | "port_of_loading" | "port_of_discharge") {
-	const value = prompt(`New ${doctype} name`);
+// Link-field fetchers: client-side filter over the masters list, with an
+// inline "create" action so unknown lines/ports never block the flow.
+type MasterHit = Record<string, unknown> & { name: string };
+function masterFetcher(list: () => string[]) {
+	return async (q: string): Promise<MasterHit[]> =>
+		list()
+			.filter((n) => n.toLowerCase().includes(q.toLowerCase()))
+			.slice(0, 20)
+			.map((n) => ({ name: n }));
+}
+const fetchLines = masterFetcher(() => masters.value.shipping_lines);
+const fetchPorts = masterFetcher(() => masters.value.ports);
+
+async function quickAdd(
+	doctype: "Shipping Line" | "Port",
+	field: "shipping_line" | "port_of_loading" | "port_of_discharge",
+	value: string,
+) {
 	if (!value) return;
 	try {
 		const res = await call<{ name: string }>("bwm_logistics.api.containers.quick_add_master", { doctype, value });
-		if (doctype === "Shipping Line") masters.value.shipping_lines.push(res.name);
-		else masters.value.ports.push(res.name);
+		if (doctype === "Shipping Line" && !masters.value.shipping_lines.includes(res.name)) {
+			masters.value.shipping_lines.push(res.name);
+		} else if (doctype === "Port" && !masters.value.ports.includes(res.name)) {
+			masters.value.ports.push(res.name);
+		}
 		form[field] = res.name;
+		toast.success(`${doctype} “${res.name}” added`);
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not add");
 	}
@@ -223,11 +243,16 @@ async function save() {
 					<Select v-model="form.container_type" :options="masters.container_types" placeholder="Select type" />
 				</div>
 				<div class="space-y-1.5">
-					<div class="flex items-center justify-between">
-						<Label>Shipping line</Label>
-						<button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="quickAdd('Shipping Line', 'shipping_line')">+ Add</button>
-					</div>
-					<Select v-model="form.shipping_line" :options="masters.shipping_lines" placeholder="Select line" />
+					<Label>Shipping line</Label>
+					<SearchCombo
+						v-model="form.shipping_line"
+						:fetcher="fetchLines"
+						value-key="name"
+						label-key="name"
+						placeholder="Search shipping line…"
+						create-label="Add line"
+						@create="(q) => quickAdd('Shipping Line', 'shipping_line', q)"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label>Vessel</Label>
@@ -238,18 +263,28 @@ async function save() {
 					<Input v-model="form.bl_no" />
 				</div>
 				<div class="space-y-1.5">
-					<div class="flex items-center justify-between">
-						<Label>Port of loading</Label>
-						<button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="quickAdd('Port', 'port_of_loading')">+ Add</button>
-					</div>
-					<Select v-model="form.port_of_loading" :options="masters.ports" placeholder="Select port" />
+					<Label>Port of loading</Label>
+					<SearchCombo
+						v-model="form.port_of_loading"
+						:fetcher="fetchPorts"
+						value-key="name"
+						label-key="name"
+						placeholder="Search port…"
+						create-label="Add port"
+						@create="(q) => quickAdd('Port', 'port_of_loading', q)"
+					/>
 				</div>
 				<div class="space-y-1.5">
-					<div class="flex items-center justify-between">
-						<Label>Port of discharge</Label>
-						<button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="quickAdd('Port', 'port_of_discharge')">+ Add</button>
-					</div>
-					<Select v-model="form.port_of_discharge" :options="masters.ports" placeholder="Select port" />
+					<Label>Port of discharge</Label>
+					<SearchCombo
+						v-model="form.port_of_discharge"
+						:fetcher="fetchPorts"
+						value-key="name"
+						label-key="name"
+						placeholder="Search port…"
+						create-label="Add port"
+						@create="(q) => quickAdd('Port', 'port_of_discharge', q)"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label>ETD</Label>

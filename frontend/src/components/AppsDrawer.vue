@@ -64,7 +64,7 @@ const canManage = computed(() => session.canSee("settings"));
 	>
 		<div
 			v-if="open"
-			class="absolute right-0 top-full z-50 mt-2.5 w-[42rem] max-w-[95vw] overflow-hidden rounded-2xl border border-border bg-white px-8 py-7 text-gray-900 shadow-modal"
+			class="absolute right-0 top-full z-50 mt-2.5 w-[58rem] max-w-[95vw] overflow-hidden rounded-2xl border border-border bg-white px-8 py-7 text-gray-900 shadow-modal"
 		>
 			<div class="grid grid-cols-4 gap-x-10 gap-y-6">
 				<!-- Core Apps — spans three columns -->

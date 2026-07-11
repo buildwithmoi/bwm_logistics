@@ -11,6 +11,7 @@ import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
@@ -84,8 +85,8 @@ interface ChargeRow {
 	amount: number | null;
 }
 const form = reactive({
-	customer: "",
-	container: "",
+	customer: "" as string | null,
+	container: "" as string | null,
 	direction: "Import",
 	consignee_name: "",
 	consignee_phone: "",
@@ -95,29 +96,43 @@ const form = reactive({
 	charges: [] as ChargeRow[],
 });
 
-const customerOptions = ref<Array<{ value: string; label: string }>>([]);
-const containerOptions = ref<Array<{ value: string; label: string }>>([]);
-async function openDialog() {
+// Server-searched link fields (SearchCombo fetchers).
+interface CustomerHit extends Record<string, unknown> {
+	name: string;
+	customer_name: string;
+	mobile_no?: string;
+}
+interface ContainerHit extends Record<string, unknown> {
+	name: string;
+	label: string;
+	sub: string;
+}
+const customerDisplay = ref<string | null>(null);
+const containerDisplay = ref<string | null>(null);
+
+async function fetchCustomers(q: string): Promise<CustomerHit[]> {
+	const res = await call<{ rows: CustomerHit[] }>("bwm_logistics.api.customers.list_customers", {
+		search: q || null,
+		limit: 20,
+	});
+	return res.rows;
+}
+async function fetchContainers(q: string): Promise<ContainerHit[]> {
+	const res = await call<{ rows: Array<{ name: string; container_no?: string; direction: string; vessel?: string; eta?: string }> }>(
+		"bwm_logistics.api.containers.list_containers",
+		{ status: "Active", search: q || null, limit: 20 },
+	);
+	return res.rows.map((c) => ({
+		name: c.name,
+		label: c.container_no || c.name,
+		sub: [c.direction, c.vessel, c.eta ? `ETA ${c.eta}` : null].filter(Boolean).join(" · "),
+	}));
+}
+
+function openDialog() {
 	dialogOpen.value = true;
-	try {
-		const [cust, cont] = await Promise.all([
-			call<{ rows: Array<{ name: string; customer_name: string }> }>(
-				"bwm_logistics.api.customers.list_customers",
-				{ limit: 100 },
-			),
-			call<{ rows: Array<{ name: string; container_no?: string; direction: string }> }>(
-				"bwm_logistics.api.containers.list_containers",
-				{ status: "Active", limit: 100 },
-			),
-		]);
-		customerOptions.value = cust.rows.map((c) => ({ value: c.name, label: c.customer_name }));
-		containerOptions.value = cont.rows.map((c) => ({
-			value: c.name,
-			label: `${c.container_no || c.name} (${c.direction})`,
-		}));
-	} catch {
-		/* selects degrade */
-	}
+	customerDisplay.value = null;
+	containerDisplay.value = null;
 }
 
 function addPackage() {
@@ -215,11 +230,27 @@ async function save() {
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div class="space-y-1.5">
 					<Label required>Customer</Label>
-					<Select v-model="form.customer" :options="customerOptions" placeholder="Select customer" />
+					<SearchCombo
+						v-model="form.customer"
+						v-model:display-value="customerDisplay"
+						:fetcher="fetchCustomers"
+						value-key="name"
+						label-key="customer_name"
+						sublabel-key="mobile_no"
+						placeholder="Search customer…"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label>Container (tag for notifications)</Label>
-					<Select v-model="form.container" :options="containerOptions" placeholder="None — loose cargo" />
+					<SearchCombo
+						v-model="form.container"
+						v-model:display-value="containerDisplay"
+						:fetcher="fetchContainers"
+						value-key="name"
+						label-key="label"
+						sublabel-key="sub"
+						placeholder="Search container… (leave empty for loose cargo)"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label required>Direction</Label>

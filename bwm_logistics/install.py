@@ -44,8 +44,62 @@ DEFAULT_MILESTONES = {
 def after_install():
 	ensure_roles()
 	ensure_customer_fields()
+	ensure_user_role_field()
 	seed_milestone_templates()
+	seed_logistics_roles()
 	frappe.db.commit()
+
+
+def ensure_user_role_field():
+	"""User.bwm_logistics_role — the single admin-managed app role that
+	controls which operator pages a staff user sees (ex_beauty pattern)."""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields(
+		{
+			"User": [
+				{
+					"fieldname": "bwm_logistics_role",
+					"fieldtype": "Link",
+					"label": "Logistics Role",
+					"options": "Logistics Role",
+					"insert_after": "role_profile_name",
+					"description": "The logistics app role controlling which operator pages this user sees (managed in the app's Settings).",
+				}
+			]
+		},
+		ignore_validate=True,
+	)
+
+
+def seed_logistics_roles():
+	"""First-time setup of admin-managed roles. Runs only while none exist so
+	the operator owns them afterwards. Mirrors the previous static role maps."""
+	import json
+
+	if not frappe.db.exists("DocType", "Logistics Role"):
+		return
+	if frappe.get_all("Logistics Role", limit=1):
+		return
+
+	def make(role_name, is_admin=0, all_pages=0, pages=None):
+		frappe.get_doc(
+			{
+				"doctype": "Logistics Role",
+				"role_name": role_name,
+				"is_admin": is_admin,
+				"all_pages": all_pages,
+				"pages": json.dumps(pages or []),
+			}
+		).insert(ignore_permissions=True)
+
+	make("Admin", is_admin=1)
+	make("Manager", all_pages=1)
+	make(
+		"Operations",
+		pages=["dashboard", "containers", "shipments", "scan", "dispatch", "customers", "billing", "reports", "notifications"],
+	)
+	make("Accounts", pages=["dashboard", "customers", "billing", "reports", "notifications"])
 
 
 def ensure_roles():

@@ -10,7 +10,7 @@ import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
-import Select from "@/components/ui/Select.vue";
+import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -89,12 +89,27 @@ async function loadAssignable() {
 const runOpen = ref(false);
 const saving = ref(false);
 const form = reactive({
-	driver: "",
-	vehicle: "",
+	driver: "" as string | null,
+	vehicle: "" as string | null,
 	run_date: new Date().toISOString().slice(0, 10),
 	shipments: new Set<string>(),
 	pickups: new Set<string>(),
 });
+const driverDisplay = ref<string | null>(null);
+
+// Link-field fetchers — client-side filter over the assignable pools.
+type DriverHit = Record<string, unknown> & { name: string; full_name: string; cell_number?: string };
+async function fetchDrivers(q: string): Promise<DriverHit[]> {
+	return assignable.value.drivers
+		.filter((d) => d.full_name.toLowerCase().includes(q.toLowerCase()))
+		.slice(0, 20) as DriverHit[];
+}
+type VehicleHit = Record<string, unknown> & { name: string };
+async function fetchVehicles(q: string): Promise<VehicleHit[]> {
+	return assignable.value.vehicles
+		.filter((v) => v.name.toLowerCase().includes(q.toLowerCase()))
+		.slice(0, 20) as VehicleHit[];
+}
 function toggle(set: Set<string>, name: string) {
 	set.has(name) ? set.delete(name) : set.add(name);
 }
@@ -162,10 +177,6 @@ async function saveDriver() {
 	}
 }
 
-const driverOptions = computed(() =>
-	assignable.value.drivers.map((d) => ({ value: d.name, label: d.full_name })),
-);
-const vehicleOptions = computed(() => assignable.value.vehicles.map((v) => v.name));
 </script>
 
 <template>
@@ -246,11 +257,25 @@ const vehicleOptions = computed(() => assignable.value.vehicles.map((v) => v.nam
 			<div class="grid gap-4 sm:grid-cols-3">
 				<div class="space-y-1.5">
 					<Label required>Driver</Label>
-					<Select v-model="form.driver" :options="driverOptions" placeholder="Select driver" />
+					<SearchCombo
+						v-model="form.driver"
+						v-model:display-value="driverDisplay"
+						:fetcher="fetchDrivers"
+						value-key="name"
+						label-key="full_name"
+						sublabel-key="cell_number"
+						placeholder="Search driver…"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label>Vehicle</Label>
-					<Select v-model="form.vehicle" :options="vehicleOptions" placeholder="Optional" />
+					<SearchCombo
+						v-model="form.vehicle"
+						:fetcher="fetchVehicles"
+						value-key="name"
+						label-key="name"
+						placeholder="Search vehicle… (optional)"
+					/>
 				</div>
 				<div class="space-y-1.5">
 					<Label required>Date</Label>

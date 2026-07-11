@@ -69,9 +69,14 @@ def _full_perm(page) -> dict:
 def user_perms(user=None) -> dict:
 	"""{page_key: perm} — the resolved access map for a user.
 
-	Supers → every operator page. Staff → union of their roles' pages.
-	Customers → the portal pages (scoped 'own'; scoping itself is enforced
-	by the portal endpoints via require_customer()).
+	Resolution order:
+	1. Supers (System Manager / Administrator / Logistics Manager) → all
+	   operator pages.
+	2. A staff user's admin-managed **Logistics Role** (User.bwm_logistics_role)
+	   → exactly that role's pages (is_admin → all; all_pages → all−settings).
+	3. No app role assigned → fall back to the static Frappe-role map (keeps
+	   drivers and pre-role installs working unchanged).
+	Customers → portal pages (scoped 'own'; enforced by require_customer()).
 	"""
 	user = user or frappe.session.user
 	roles = set(frappe.get_roles(user))
@@ -79,9 +84,16 @@ def user_perms(user=None) -> dict:
 	pages: set = set()
 	if roles & SUPER_ROLES:
 		pages |= OPERATOR_KEYS
-	for role, keys in ROLE_PAGES.items():
-		if role in roles:
-			pages |= keys
+	else:
+		app_role = _user_app_role(user)
+		if app_role and roles & set(ANY_STAFF):
+			pages |= frappe.get_cached_doc("Logistics Role", app_role).page_keys()
+		else:
+			for role, keys in ROLE_PAGES.items():
+				if role in roles and role != ROLE_CUSTOMER:
+					pages |= keys
+	if ROLE_CUSTOMER in roles:
+		pages |= PORTAL_KEYS
 
 	perms = {}
 	for key in pages:
@@ -91,6 +103,15 @@ def user_perms(user=None) -> dict:
 			p["delete"] = 0
 		perms[key] = p
 	return perms
+
+
+def _user_app_role(user) -> str | None:
+	"""The admin-managed Logistics Role assigned to a user (or None)."""
+	try:
+		role = frappe.db.get_value("User", user, "bwm_logistics_role")
+	except Exception:
+		return None  # custom field not created yet (mid-install)
+	return role if role and frappe.db.exists("Logistics Role", role) else None
 
 
 def can(page, action, user=None) -> bool:
