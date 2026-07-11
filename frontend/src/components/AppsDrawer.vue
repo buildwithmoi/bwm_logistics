@@ -11,6 +11,7 @@ import {
 	ReceiptText,
 	BellRing,
 	Settings,
+	ScanLine,
 } from "lucide-vue-next";
 
 // App launcher — a wide, categorised grid (ex_beauty pattern). Core Apps span
@@ -32,6 +33,7 @@ const CORE: App[] = [
 	{ key: "dashboard", label: "Dashboard", to: "/", icon: LayoutDashboard },
 	{ key: "containers", label: "Containers", to: "/containers", icon: Container },
 	{ key: "shipments", label: "Shipments", to: "/shipments", icon: Package },
+	{ key: "scan", label: "Scan", to: "/scan", icon: ScanLine },
 	{ key: "dispatch", label: "Dispatch", to: "/dispatch", icon: MapPin },
 	{ key: "customers", label: "Customers", to: "/customers", icon: Users },
 	{ key: "billing", label: "Billing", to: "/billing", icon: ReceiptText },

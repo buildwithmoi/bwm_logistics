@@ -165,9 +165,13 @@
 	<div class="hero">
 		<div class="wrap">
 			<span class="eyebrow">{{ _("Import · Export · Delivery") }}</span>
+			{%- if hero_title %}
+			<h1>{{ hero_title }}</h1>
+			{%- else %}
 			<h1>{{ _("Your cargo, tracked from") }} <em>{{ _("port to doorstep") }}</em>.</h1>
+			{%- endif %}
 			<p class="lede">
-				{{ _("We consolidate your goods into secure containers, clear them, and deliver to your door — and you can follow every milestone online, get notified automatically, and pay without leaving home.") }}
+				{{ hero_subtitle or _("We consolidate your goods into secure containers, clear them, and deliver to your door — and you can follow every milestone online, get notified automatically, and pay without leaving home.") }}
 			</p>
 			<!-- Guest track widget (FR-WEB-3): calls the public tracking API. -->
 			<form id="trackForm" class="track-form" autocomplete="off">
@@ -260,9 +264,9 @@
 			<h2>{{ _("Talk to us") }}</h2>
 			<p class="sec-sub">{{ _("Questions about a shipment or a quote for your next consignment — we respond fast.") }}</p>
 			<div class="contact-grid">
-				<div class="card"><h3>{{ _("Call / WhatsApp") }}</h3><p>+000 00 000 0000</p></div>
-				<div class="card"><h3>{{ _("Email") }}</h3><p>hello@example.com</p></div>
-				<div class="card"><h3>{{ _("Office") }}</h3><p>{{ _("Mon–Sat, 8:00–18:00") }}</p></div>
+				<div class="card"><h3>{{ _("Call / WhatsApp") }}</h3><p>{{ contact_phone }}</p></div>
+				<div class="card"><h3>{{ _("Email") }}</h3><p>{{ contact_email }}</p></div>
+				<div class="card"><h3>{{ _("Office") }}</h3><p>{{ office_hours }}</p></div>
 			</div>
 		</div>
 	</section>

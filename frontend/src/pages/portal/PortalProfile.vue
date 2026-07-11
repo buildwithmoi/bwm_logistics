@@ -12,6 +12,8 @@ interface Profile {
 	mobile_no?: string;
 	bwm_notify_email?: number;
 	bwm_notify_sms?: number;
+	bwm_notify_whatsapp?: number;
+	whatsapp_available?: boolean;
 	user: string;
 }
 const profile = ref<Profile | null>(null);
@@ -27,14 +29,15 @@ onMounted(async () => {
 	}
 });
 
-async function toggle(field: "bwm_notify_email" | "bwm_notify_sms") {
+async function toggle(field: "bwm_notify_email" | "bwm_notify_sms" | "bwm_notify_whatsapp") {
 	if (!profile.value) return;
 	const next = profile.value[field] ? 0 : 1;
 	profile.value[field] = next;
 	try {
 		await call("bwm_logistics.api.portal.update_prefs", {
-			notify_email: field === "bwm_notify_email" ? next : profile.value.bwm_notify_email ?? 1,
-			notify_sms: field === "bwm_notify_sms" ? next : profile.value.bwm_notify_sms ?? 1,
+			notify_email: profile.value.bwm_notify_email ?? 1,
+			notify_sms: profile.value.bwm_notify_sms ?? 1,
+			notify_whatsapp: profile.value.bwm_notify_whatsapp ?? 1,
 		});
 		toast.success("Preferences saved");
 	} catch (e: unknown) {
@@ -96,6 +99,24 @@ async function toggle(field: "bwm_notify_email" | "bwm_notify_sms") {
 							class="h-4 w-4 rounded accent-[#b8860b]"
 							:checked="!!profile.bwm_notify_sms"
 							@change="toggle('bwm_notify_sms')"
+						/>
+					</label>
+					<label
+						v-if="profile.whatsapp_available"
+						class="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50"
+					>
+						<span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600/10 text-emerald-700">
+							<MessageSquareText class="h-4 w-4" />
+						</span>
+						<span class="min-w-0 flex-1">
+							<span class="block text-sm font-medium">WhatsApp updates</span>
+							<span class="block text-xs text-muted-foreground">Messages to {{ profile.mobile_no || "your phone" }}</span>
+						</span>
+						<input
+							type="checkbox"
+							class="h-4 w-4 rounded accent-[#b8860b]"
+							:checked="!!profile.bwm_notify_whatsapp"
+							@change="toggle('bwm_notify_whatsapp')"
 						/>
 					</label>
 				</div>

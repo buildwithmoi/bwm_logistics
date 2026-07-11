@@ -27,6 +27,7 @@ const routes = [
 		name: "shipment-label",
 		component: () => import("@/pages/ShipmentLabel.vue"),
 	},
+	{ path: "/scan", name: "scan", component: () => import("@/pages/Scan.vue") },
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
 	{
 		path: "/dispatch/:name",

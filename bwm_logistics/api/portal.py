@@ -144,25 +144,44 @@ def my_invoices():
 
 
 @frappe.whitelist()
+def my_notifications(limit=20):
+	"""The customer's own notification feed (in-portal bell, FR-POR-6)."""
+	customer = require_customer()
+	return frappe.get_all(
+		"Notification Log Entry",
+		filters={"customer": customer, "status": ("in", ["Sent", "Queued", "Failed"])},
+		fields=["name", "creation", "channel", "milestone", "shipment", "subject", "message"],
+		order_by="creation desc",
+		limit=min(cint(limit) or 20, 50),
+	)
+
+
+@frappe.whitelist()
 def get_profile():
 	customer = require_customer()
 	row = frappe.db.get_value(
 		"Customer", customer,
-		["customer_name", "email_id", "mobile_no", "bwm_notify_email", "bwm_notify_sms"],
+		["customer_name", "email_id", "mobile_no",
+			"bwm_notify_email", "bwm_notify_sms", "bwm_notify_whatsapp"],
 		as_dict=True,
 	)
 	row["user"] = frappe.session.user
+	row["whatsapp_available"] = bool(
+		frappe.db.get_single_value("Logistics Settings", "whatsapp_enabled")
+	)
 	return row
 
 
 @frappe.whitelist()
-def update_prefs(notify_email=None, notify_sms=None):
+def update_prefs(notify_email=None, notify_sms=None, notify_whatsapp=None):
 	customer = require_customer()
 	updates = {}
 	if notify_email is not None:
 		updates["bwm_notify_email"] = cint(notify_email)
 	if notify_sms is not None:
 		updates["bwm_notify_sms"] = cint(notify_sms)
+	if notify_whatsapp is not None:
+		updates["bwm_notify_whatsapp"] = cint(notify_whatsapp)
 	if updates:
 		frappe.db.set_value("Customer", customer, updates)
 	return {"ok": True}

@@ -153,23 +153,16 @@ after_migrate = ["bwm_logistics.install.after_install"]
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"bwm_logistics.tasks.all"
-# 	],
-# 	"daily": [
-# 		"bwm_logistics.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"bwm_logistics.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"bwm_logistics.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"bwm_logistics.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"hourly": [
+		# Carrier-API container sync — no-op until a provider is configured.
+		"bwm_logistics.carrier_tracking.sync_all_active",
+	],
+	"daily": [
+		# Demurrage-risk digest to Logistics Managers.
+		"bwm_logistics.alerts.demurrage_check",
+	],
+}
 
 # Testing
 # -------

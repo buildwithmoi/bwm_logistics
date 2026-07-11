@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Flag, Ship, Package } from "lucide-vue-next";
+import { ArrowLeft, Flag, Ship, Package, RefreshCw } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -25,6 +25,7 @@ interface ContainerData {
 	shipments: Array<Record<string, unknown>>;
 	timeline: TimelineEvent[];
 	milestone_options: Array<{ milestone: string; notify_customer: number }>;
+	tracking_provider?: string | null;
 }
 const data = ref<ContainerData | null>(null);
 const loading = ref(true);
@@ -47,6 +48,28 @@ onMounted(load);
 
 const doc = computed(() => (data.value?.doc || {}) as Record<string, string | number | null>);
 const canEdit = computed(() => session.can("containers", "edit"));
+
+// Carrier-API sync (visible when a provider is configured in Settings).
+const syncing = ref(false);
+async function syncTracking() {
+	syncing.value = true;
+	try {
+		const res = await call<{ new_events: number; updated: string[] }>(
+			"bwm_logistics.api.containers.sync_tracking",
+			{ name: name.value },
+		);
+		toast.success(
+			res.new_events
+				? `${res.new_events} new event(s) from ${data.value?.tracking_provider}`
+				: "Already up to date",
+		);
+		if (res.new_events || res.updated.length) await load();
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Sync failed");
+	} finally {
+		syncing.value = false;
+	}
+}
 
 // ── record milestone ────────────────────────────────────────────────────────
 const milestoneOpen = ref(false);
@@ -134,6 +157,14 @@ const infoRows = computed(() => [
 						<span v-if="doc.current_milestone"> · {{ doc.current_milestone }}</span>
 					</p>
 				</div>
+				<Button
+					v-if="canEdit && data.tracking_provider && doc.container_no"
+					variant="outline"
+					:loading="syncing"
+					@click="syncTracking"
+				>
+					<RefreshCw class="h-4 w-4" /> Sync tracking
+				</Button>
 				<Button v-if="canEdit" @click="milestoneOpen = true">
 					<Flag class="h-4 w-4" /> Record milestone
 				</Button>

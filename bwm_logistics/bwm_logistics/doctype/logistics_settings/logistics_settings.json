@@ -9,13 +9,29 @@
   "logo",
   "tracking_section",
   "tracking_prefix",
+  "column_break_tracking",
+  "tracking_provider",
+  "tracking_api_key",
+  "tracking_webhook_token",
   "notifications_section",
   "email_enabled",
   "sms_enabled",
+  "whatsapp_enabled",
   "column_break_notify",
   "email_subject_template",
   "email_body_template",
-  "sms_template"
+  "sms_template",
+  "whatsapp_section",
+  "whatsapp_gateway_url",
+  "column_break_whatsapp",
+  "whatsapp_api_token",
+  "website_section",
+  "hero_title",
+  "hero_subtitle",
+  "column_break_website",
+  "contact_phone",
+  "contact_email",
+  "office_hours"
  ],
  "fields": [
   {
@@ -46,6 +62,29 @@
    "label": "Tracking Number Prefix"
   },
   {
+   "fieldname": "column_break_tracking",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Container-visibility API for automatic milestone sync.",
+   "fieldname": "tracking_provider",
+   "fieldtype": "Select",
+   "label": "Carrier Tracking Provider",
+   "options": "\nShipsGo\nTerminal49"
+  },
+  {
+   "fieldname": "tracking_api_key",
+   "fieldtype": "Password",
+   "label": "Tracking API Key"
+  },
+  {
+   "description": "Shared secret for the inbound tracking webhook (/api/method/bwm_logistics.api.carrier_webhook.receive?token=...). Generated automatically.",
+   "fieldname": "tracking_webhook_token",
+   "fieldtype": "Data",
+   "label": "Tracking Webhook Token",
+   "read_only": 1
+  },
+  {
    "fieldname": "notifications_section",
    "fieldtype": "Section Break",
    "label": "Notifications"
@@ -62,6 +101,13 @@
    "fieldname": "sms_enabled",
    "fieldtype": "Check",
    "label": "Send SMS Notifications"
+  },
+  {
+   "default": "0",
+   "description": "Requires a WhatsApp HTTP gateway (configured below).",
+   "fieldname": "whatsapp_enabled",
+   "fieldtype": "Check",
+   "label": "Send WhatsApp Notifications"
   },
   {
    "fieldname": "column_break_notify",
@@ -85,6 +131,61 @@
    "fieldname": "sms_template",
    "fieldtype": "Small Text",
    "label": "SMS Template"
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Gateway"
+  },
+  {
+   "description": "POST endpoint of your WhatsApp gateway. Receives JSON {\"to\": phone, \"message\": text}.",
+   "fieldname": "whatsapp_gateway_url",
+   "fieldtype": "Data",
+   "label": "Gateway URL"
+  },
+  {
+   "fieldname": "column_break_whatsapp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Sent as Authorization: Bearer <token>.",
+   "fieldname": "whatsapp_api_token",
+   "fieldtype": "Password",
+   "label": "Gateway API Token"
+  },
+  {
+   "fieldname": "website_section",
+   "fieldtype": "Section Break",
+   "label": "Public Website"
+  },
+  {
+   "fieldname": "hero_title",
+   "fieldtype": "Data",
+   "label": "Hero Title"
+  },
+  {
+   "fieldname": "hero_subtitle",
+   "fieldtype": "Small Text",
+   "label": "Hero Subtitle"
+  },
+  {
+   "fieldname": "column_break_website",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "contact_email",
+   "fieldtype": "Data",
+   "label": "Contact Email"
+  },
+  {
+   "fieldname": "office_hours",
+   "fieldtype": "Data",
+   "label": "Office Hours"
   }
  ],
  "index_web_pages_for_search": 0,

@@ -304,3 +304,93 @@ class TestDispatchFlow(IntegrationTestCase):
 			self.assertEqual(dapi.list_runs()["rows"], [])
 		finally:
 			frappe.set_user("Administrator")
+
+
+class TestCarrierTracking(IntegrationTestCase):
+	"""Inbound webhook + tracking-data application (dedupe, ETA updates)."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def _container(self, no="TSTU3054383"):
+		return frappe.get_doc(
+			{"doctype": "Container", "direction": "Import", "container_no": no}
+		).insert(ignore_permissions=True)
+
+	def test_apply_tracking_data_dedupes_and_updates_eta(self):
+		from bwm_logistics.carrier_tracking import apply_tracking_data
+
+		container = self._container()
+		data = {
+			"events": [
+				{"milestone": "Vessel Departed", "event_datetime": frappe.utils.now_datetime()},
+				{"milestone": "Vessel Departed", "event_datetime": frappe.utils.now_datetime()},
+			],
+			"eta": frappe.utils.add_days(frappe.utils.nowdate(), 10),
+		}
+		first = apply_tracking_data(container, data)
+		self.assertEqual(first["new_events"], 1)
+		self.assertIn("eta", first["updated"])
+		# Second pass with the same payload — nothing new.
+		container.reload()
+		second = apply_tracking_data(container, data)
+		self.assertEqual(second["new_events"], 0)
+		self.assertEqual(
+			frappe.db.get_value("Container", container.name, "current_milestone"), "Vessel Departed"
+		)
+
+	def test_webhook_requires_token(self):
+		from bwm_logistics.api.carrier_webhook import receive
+
+		settings = frappe.get_doc("Logistics Settings")
+		settings.save()  # ensures a webhook token exists
+		container = self._container()
+
+		frappe.set_user("Guest")
+		try:
+			with self.assertRaises(frappe.PermissionError):
+				receive(token="wrong", container_no=container.container_no, event="Arrived at Port")
+			result = receive(
+				token=frappe.db.get_single_value("Logistics Settings", "tracking_webhook_token"),
+				container_no=container.container_no,
+				event="Arrived at Port",
+				location="Tema",
+			)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertTrue(result["ok"])
+		self.assertEqual(result["new_events"], 1)
+
+
+class TestDemurrageAlerts(IntegrationTestCase):
+	def test_at_risk_and_digest(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics import alerts
+
+		frappe.get_doc(
+			{
+				"doctype": "Container",
+				"direction": "Import",
+				"container_no": "TSTU3054383",
+				"demurrage_start_date": frappe.utils.add_days(frappe.utils.nowdate(), 1),
+			}
+		).insert(ignore_permissions=True)
+
+		risky = alerts.at_risk_containers()
+		self.assertTrue(any(r.days_left <= alerts.RISK_WINDOW_DAYS for r in risky))
+
+		alerts.demurrage_check()
+		logs = frappe.get_all(
+			"Notification Log Entry",
+			filters={"milestone": "Demurrage Alert"},
+			fields=["status", "subject"],
+		)
+		self.assertTrue(logs, "digest not logged")
+		# Second call the same day must not double-send.
+		before = len(logs)
+		alerts.demurrage_check()
+		after = frappe.db.count("Notification Log Entry", {"milestone": "Demurrage Alert"})
+		self.assertEqual(after, before)

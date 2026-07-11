@@ -18,12 +18,15 @@ def get_overview():
 		unpaid = frappe.db.count(
 			"Sales Invoice", {"docstatus": 1, "outstanding_amount": (">", 0)}
 		)
+	from bwm_logistics.alerts import at_risk_containers
+
 	return {
 		"containers_active": frappe.db.count("Container", {"status": "Active"}),
 		"arriving_soon": frappe.db.count(
 			"Container",
 			{"status": "Active", "eta": ("between", [today, add_days(today, 7)])},
 		),
+		"demurrage_risk": at_risk_containers(),
 		"active_shipments": frappe.db.count(
 			"Shipment", {"status": ("not in", ["Delivered", "Cancelled"])}
 		),

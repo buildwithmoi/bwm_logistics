@@ -89,6 +89,13 @@ def ensure_customer_fields():
 					"default": "1",
 					"insert_after": "bwm_notify_email",
 				},
+				{
+					"fieldname": "bwm_notify_whatsapp",
+					"fieldtype": "Check",
+					"label": "Notify by WhatsApp",
+					"default": "1",
+					"insert_after": "bwm_notify_sms",
+				},
 			]
 		},
 		ignore_validate=True,

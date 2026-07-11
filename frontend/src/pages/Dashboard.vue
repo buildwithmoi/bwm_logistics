@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Container, Package, ReceiptText, CalendarClock, ArrowRight, Activity } from "lucide-vue-next";
+import { Container, Package, ReceiptText, CalendarClock, ArrowRight, Activity, AlertTriangle } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "@/stores/session";
 import { call } from "@/lib/frappe";
@@ -23,6 +23,7 @@ interface Overview {
 	arriving_soon: number;
 	active_shipments: number;
 	unpaid_invoices: number;
+	demurrage_risk: Array<{ name: string; container_no?: string; demurrage_start_date: string; days_left: number }>;
 	recent_events: Array<{
 		name: string;
 		event_datetime: string;
@@ -67,6 +68,27 @@ const tiles = computed(() => [
 			</div>
 			<span class="rounded-full bg-gray-100 px-4 py-1.5 text-sm text-gray-600">{{ today }}</span>
 		</header>
+
+		<!-- Demurrage risk banner -->
+		<div
+			v-if="data?.demurrage_risk?.length"
+			class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-red-50 px-5 py-3.5 ring-1 ring-red-200"
+		>
+			<AlertTriangle class="h-5 w-5 shrink-0 text-red-600" />
+			<span class="min-w-0 flex-1 text-sm text-red-800">
+				<b>{{ data.demurrage_risk.length }}</b> container(s) at demurrage risk:
+				<template v-for="(c, i) in data.demurrage_risk.slice(0, 3)" :key="c.name">
+					<RouterLink :to="`/containers/${c.name}`" class="font-semibold underline underline-offset-2">
+						{{ c.container_no || c.name }}</RouterLink>
+					<span v-if="c.days_left > 0"> (in {{ c.days_left }}d)</span><span v-else> (running)</span
+					><span v-if="i < Math.min(data.demurrage_risk.length, 3) - 1">, </span>
+				</template>
+				<span v-if="data.demurrage_risk.length > 3">…</span>
+			</span>
+			<RouterLink to="/containers" class="shrink-0 text-sm font-semibold text-red-700 hover:underline">
+				Review →
+			</RouterLink>
+		</div>
 
 		<!-- KPI strip -->
 		<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">

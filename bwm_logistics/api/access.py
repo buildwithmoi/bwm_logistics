@@ -29,6 +29,7 @@ OPERATOR_PAGES = [
 	{"key": "dashboard", "label": "Dashboard"},
 	{"key": "containers", "label": "Containers"},
 	{"key": "shipments", "label": "Shipments"},
+	{"key": "scan", "label": "Scan"},
 	{"key": "dispatch", "label": "Dispatch"},
 	{"key": "customers", "label": "Customers"},
 	{"key": "billing", "label": "Billing"},

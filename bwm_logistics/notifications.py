@@ -76,6 +76,13 @@ def _notify_shipment(event, shipment, settings):
 			_log(event, shipment, "SMS", mobile or "", "Skipped",
 				error="No mobile number" if not mobile else "Customer opted out")
 
+	if settings.whatsapp_enabled:
+		if mobile and prefs["whatsapp"]:
+			_send_whatsapp(event, shipment, mobile, ctx, settings)
+		else:
+			_log(event, shipment, "WhatsApp", mobile or "", "Skipped",
+				error="No mobile number" if not mobile else "Customer opted out")
+
 
 def _context(event, shipment, settings) -> dict:
 	business = settings.business_name or frappe.db.get_default("company") or "BWM Logistics"
@@ -117,6 +124,28 @@ def _send_sms(event, shipment, mobile, ctx, settings):
 		from frappe.core.doctype.sms_settings.sms_settings import send_sms
 
 		send_sms(receiver_list=[mobile], msg=message, success_msg=False)
+		log.db_set("status", "Sent", update_modified=False)
+	except Exception as e:
+		log.db_set({"status": "Failed", "error": str(e)[:500]}, update_modified=False)
+
+
+def _send_whatsapp(event, shipment, mobile, ctx, settings):
+	"""Generic WhatsApp HTTP gateway: POST {"to", "message"} with a Bearer
+	token — wire it to Hubtel, WATI, or any BSP relay (FR-NOT-5)."""
+	message = _render(settings.sms_template or DEFAULT_SMS, ctx)
+	log = _log(event, shipment, "WhatsApp", mobile, "Queued", message=message)
+	try:
+		import requests
+
+		url = settings.whatsapp_gateway_url
+		if not url:
+			raise ValueError("WhatsApp gateway URL not configured")
+		headers = {"Content-Type": "application/json"}
+		token = settings.get_password("whatsapp_api_token", raise_exception=False)
+		if token:
+			headers["Authorization"] = f"Bearer {token}"
+		res = requests.post(url, json={"to": mobile, "message": message}, headers=headers, timeout=15)
+		res.raise_for_status()
 		log.db_set("status", "Sent", update_modified=False)
 	except Exception as e:
 		log.db_set({"status": "Failed", "error": str(e)[:500]}, update_modified=False)
@@ -168,11 +197,16 @@ def _customer_prefs(customer: str) -> dict:
 	default opted-in when the fields don't exist yet)."""
 	try:
 		row = frappe.db.get_value(
-			"Customer", customer, ["bwm_notify_email", "bwm_notify_sms"], as_dict=True
+			"Customer", customer,
+			["bwm_notify_email", "bwm_notify_sms", "bwm_notify_whatsapp"], as_dict=True,
 		)
+		def opt(v):
+			return bool(v) if v is not None else True
+
 		return {
-			"email": bool(row.bwm_notify_email) if row and row.bwm_notify_email is not None else True,
-			"sms": bool(row.bwm_notify_sms) if row and row.bwm_notify_sms is not None else True,
+			"email": opt(row.bwm_notify_email) if row else True,
+			"sms": opt(row.bwm_notify_sms) if row else True,
+			"whatsapp": opt(row.bwm_notify_whatsapp) if row else True,
 		}
 	except Exception:
-		return {"email": True, "sms": True}
+		return {"email": True, "sms": True, "whatsapp": True}

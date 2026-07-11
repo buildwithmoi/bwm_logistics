@@ -80,12 +80,24 @@ def get_container(name):
 		fields=["name", "event_datetime", "milestone", "location", "remarks", "shipment", "notified"],
 		order_by="event_datetime desc",
 	)
+	from bwm_logistics.carrier_tracking import provider_configured
+
 	return {
 		"doc": doc.as_dict(no_nulls=False),
 		"shipments": shipments,
 		"timeline": timeline,
 		"milestone_options": doc.milestone_options(),
+		"tracking_provider": provider_configured(),
 	}
+
+
+@frappe.whitelist()
+def sync_tracking(name):
+	"""Pull the latest carrier events for one container (manual sync button)."""
+	require(*CAN_WRITE)
+	from bwm_logistics.carrier_tracking import sync_container
+
+	return sync_container(name)
 
 
 @frappe.whitelist()

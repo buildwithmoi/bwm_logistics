@@ -19,10 +19,13 @@ import {
 	X,
 	MapPin,
 	UserRound,
+	ScanLine,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import BrandLogo from "@/components/BrandLogo.vue";
 import AppsDrawer from "@/components/AppsDrawer.vue";
+import PortalBell from "@/components/PortalBell.vue";
+import { call } from "@/lib/frappe";
 import { logout as apiLogout } from "@/lib/auth";
 
 // Shell copied from the ex_beauty layout language: a near-black top bar with
@@ -112,7 +115,7 @@ async function logout() {
 // Mobile sidebar — the full nav, shown via a hamburger on small screens.
 const operatorMobile: NavItem[] = [
 	...operatorPrimary,
-	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
+	{ key: "scan", label: "Scan", icon: ScanLine, to: "/scan" },
 	{ key: "notifications", label: "Notifications", icon: BellRing, to: "/notifications" },
 	{ key: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ];
@@ -123,12 +126,21 @@ const mobileNavVisible = computed(() =>
 // Close the drawer whenever the route changes.
 watch(() => route.path, () => (mobileNavOpen.value = false));
 
-// Business name drives the brand mark and account sub-label. Static at P0 —
-// a Logistics Settings API replaces this in P1.
+// Business name + logo come from Logistics Settings (tenant branding).
 const businessName = ref("BWM Logistics");
+const logo = ref<string | null>(null);
 
-onMounted(() => {
+onMounted(async () => {
 	session.loadAccess();
+	try {
+		const b = await call<{ business_name: string; logo?: string }>(
+			"bwm_logistics.api.settings.get_branding",
+		);
+		if (b?.business_name) businessName.value = b.business_name;
+		logo.value = b?.logo || null;
+	} catch {
+		/* branding falls back to default */
+	}
 });
 </script>
 
@@ -151,9 +163,11 @@ onMounted(() => {
 			<!-- Brand -->
 			<RouterLink :to="portalMode ? '/portal' : '/'" class="flex shrink-0 items-center gap-2.5 pr-3">
 				<div
-					class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900 shadow-sm shadow-black/20"
+					class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg shadow-sm shadow-black/20"
+					:class="logo ? 'bg-white' : 'bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900'"
 				>
-					<BrandLogo :size="22" />
+					<img v-if="logo" :src="logo" alt="" class="h-full w-full object-contain" />
+					<BrandLogo v-else :size="22" />
 				</div>
 				<span class="hidden text-sm font-semibold tracking-tight xl:inline">
 					{{ businessName }}
@@ -193,6 +207,9 @@ onMounted(() => {
 					</button>
 					<AppsDrawer :open="appsOpen" @close="appsOpen = false" />
 				</div>
+
+				<!-- Notification bell (customer portal) -->
+				<PortalBell v-if="portalMode" />
 
 				<!-- Divider before account block -->
 				<div class="mx-1 hidden h-6 w-px bg-white/10 lg:block" />

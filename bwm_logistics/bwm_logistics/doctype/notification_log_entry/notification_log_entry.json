@@ -37,7 +37,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Channel",
-   "options": "Email\nSMS",
+   "options": "Email\nSMS\nWhatsApp\nSystem",
    "reqd": 1
   },
   {
