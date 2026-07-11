@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "creation": "2026-07-11 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "charge_type",
+  "calc_basis",
+  "rate",
+  "minimum"
+ ],
+ "fields": [
+  {
+   "fieldname": "charge_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Charge",
+   "reqd": 1
+  },
+  {
+   "default": "Flat",
+   "fieldname": "calc_basis",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Basis",
+   "options": "Flat\nPer KG\nPer CBM\nPer Package",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate",
+   "reqd": 1
+  },
+  {
+   "description": "Charge at least this much regardless of the computed amount.",
+   "fieldname": "minimum",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Minimum"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-11 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Bwm Logistics",
+ "name": "Rate Card Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

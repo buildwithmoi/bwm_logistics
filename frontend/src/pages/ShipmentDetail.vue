@@ -9,6 +9,7 @@ import { useSessionStore } from "@/stores/session";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
+import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -81,6 +82,50 @@ async function recordEvent() {
 		toast.error((e as { message?: string })?.message || "Could not record event");
 	} finally {
 		saving.value = false;
+	}
+}
+
+// ── rate card ───────────────────────────────────────────────────────────────
+interface RateCardOpt {
+	name: string;
+	card_name: string;
+	direction?: string;
+	is_default?: number;
+}
+const rateOpen = ref(false);
+const rateApplying = ref(false);
+const rateCards = ref<RateCardOpt[]>([]);
+const rateChoice = ref("");
+
+async function openRate() {
+	rateOpen.value = true;
+	try {
+		const cards = await call<RateCardOpt[]>("bwm_logistics.api.billing.list_rate_cards");
+		rateCards.value = cards.filter((c) => !c.direction || c.direction === data.value?.direction);
+		const preferred = rateCards.value.find((c) => c.is_default) || rateCards.value[0];
+		rateChoice.value = preferred?.name || "";
+	} catch {
+		/* empty select */
+	}
+}
+async function applyRate() {
+	if (!rateChoice.value) {
+		toast.warning("Pick a rate card");
+		return;
+	}
+	rateApplying.value = true;
+	try {
+		const res = await call<{ total_charges: number }>("bwm_logistics.api.shipments.apply_rate_card", {
+			shipment: name.value,
+			rate_card: rateChoice.value,
+		});
+		toast.success(`Charges set — total ${res.total_charges}`);
+		rateOpen.value = false;
+		await load();
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not apply rate card");
+	} finally {
+		rateApplying.value = false;
 	}
 }
 
@@ -188,7 +233,17 @@ async function makeInvoice() {
 
 					<!-- Billing -->
 					<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
-						<h2 class="label-caps mb-4">Charges & billing</h2>
+						<div class="mb-4 flex items-center justify-between">
+							<h2 class="label-caps">Charges & billing</h2>
+							<button
+								v-if="canEdit && !data.invoice"
+								type="button"
+								class="text-xs font-medium text-brand-700 hover:underline"
+								@click="openRate"
+							>
+								Apply rate card
+							</button>
+						</div>
 						<ul v-if="(data.charges || []).length" class="divide-y divide-gray-100 text-sm">
 							<li v-for="(c, i) in data.charges" :key="i" class="flex justify-between py-2">
 								<span>{{ c.charge_type }}</span>
@@ -218,6 +273,34 @@ async function makeInvoice() {
 					<Timeline :events="data.timeline" />
 				</div>
 			</div>
+
+			<!-- ── Apply rate card dialog ────────────────────────────────────── -->
+			<Dialog v-model:open="rateOpen" title="Apply rate card">
+				<div class="space-y-4">
+					<p class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-muted-foreground">
+						Charges are computed from this shipment's package totals
+						({{ data.total_packages }} pkg, {{ fmtWeight(data.total_weight_kg as number) }})
+						and <b>replace</b> the current charge lines.
+					</p>
+					<div v-if="!rateCards.length" class="text-sm text-muted-foreground">
+						No matching rate cards — create one under
+						<RouterLink to="/billing" class="font-medium text-brand-700 hover:underline">Billing</RouterLink>.
+					</div>
+					<div v-else class="space-y-1.5">
+						<Label required>Rate card</Label>
+						<Select
+							v-model="rateChoice"
+							:options="rateCards.map((c) => ({ value: c.name, label: c.card_name + (c.is_default ? ' (default)' : '') }))"
+						/>
+					</div>
+				</div>
+				<template #footer>
+					<div class="flex justify-end gap-2">
+						<Button variant="outline" @click="rateOpen = false">Cancel</Button>
+						<Button :disabled="!rateCards.length" :loading="rateApplying" @click="applyRate">Apply</Button>
+					</div>
+				</template>
+			</Dialog>
 
 			<!-- ── Record event dialog ───────────────────────────────────────── -->
 			<Dialog v-model:open="eventOpen" title="Record shipment event">

@@ -155,3 +155,22 @@ def make_invoice(shipment):
 	doc = frappe.get_doc("Shipment", shipment)
 	invoice = doc.make_sales_invoice()
 	return {"sales_invoice": invoice}
+
+
+@frappe.whitelist()
+def apply_rate_card(shipment, rate_card):
+	"""Replace the shipment's charge lines with amounts computed from a rate
+	card and its package totals (FR-PAY-1)."""
+	require(*CAN_WRITE)
+	doc = frappe.get_doc("Shipment", shipment)
+	if doc.sales_invoice:
+		frappe.throw(_("Shipment {0} is already invoiced — charges are locked.").format(shipment))
+	card = frappe.get_doc("Rate Card", rate_card)
+	charges = card.compute_charges(doc)
+	if not charges:
+		frappe.throw(_("Rate card {0} produced no charges for this shipment.").format(rate_card))
+	doc.set("charges", [])
+	for c in charges:
+		doc.append("charges", c)
+	doc.save()
+	return {"charges": charges, "total_charges": doc.total_charges}

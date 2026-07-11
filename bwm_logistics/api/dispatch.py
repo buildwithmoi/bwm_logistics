@@ -272,29 +272,16 @@ def reconcile_cod(name):
 		outstanding = frappe.db.get_value("Sales Invoice", invoice, "outstanding_amount") or 0
 		if outstanding <= 0:
 			continue
-		entries.append(_cash_payment_entry(invoice, min(stop.cod_collected, outstanding), run.name))
+		from bwm_logistics.api.billing import make_payment_entry
+
+		entries.append(
+			make_payment_entry(invoice, min(stop.cod_collected, outstanding), "Cash", reference=run.name)
+		)
 
 	run.db_set(
 		{"cod_reconciled": 1, "reconciled_by": frappe.session.user, "reconciled_at": now_datetime()}
 	)
 	return {"payment_entries": entries}
-
-
-def _cash_payment_entry(invoice, amount, run_name):
-	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
-
-	pe = get_payment_entry("Sales Invoice", invoice)
-	pe.mode_of_payment = "Cash"
-	pe.paid_amount = amount
-	pe.received_amount = amount
-	if pe.references:
-		pe.references[0].allocated_amount = amount
-	pe.reference_no = run_name
-	pe.reference_date = nowdate()
-	pe.flags.ignore_permissions = True
-	pe.insert(ignore_permissions=True)
-	pe.submit()
-	return pe.name
 
 
 # ─── Assignment sources + masters ────────────────────────────────────────────

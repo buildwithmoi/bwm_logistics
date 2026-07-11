@@ -365,6 +365,64 @@ class TestCarrierTracking(IntegrationTestCase):
 		self.assertEqual(result["new_events"], 1)
 
 
+class TestRateCards(IntegrationTestCase):
+	"""Charge computation from package totals (FR-PAY-1). CI-safe — no
+	invoices/accounting involved."""
+
+	def test_compute_and_apply(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+		card = frappe.get_doc(
+			{
+				"doctype": "Rate Card",
+				"card_name": "CI Test Rates",
+				"items": [
+					{"charge_type": "Freight", "calc_basis": "Per KG", "rate": 5, "minimum": 100},
+					{"charge_type": "Handling", "calc_basis": "Per Package", "rate": 20},
+					{"charge_type": "Docs", "calc_basis": "Flat", "rate": 50},
+				],
+			}
+		).insert(ignore_permissions=True)
+
+		customer = _make_customer("Rate Card Customer")
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"packages": [
+					{"description": "Barrel", "qty": 2, "weight_kg": 40},
+					{"description": "Box", "qty": 1, "weight_kg": 10},
+				],
+			}
+		).insert(ignore_permissions=True)
+
+		charges = card.compute_charges(ship)
+		by_type = {c["charge_type"]: c["amount"] for c in charges}
+		self.assertEqual(by_type["Freight"], 450)  # 90 kg × 5
+		self.assertEqual(by_type["Handling"], 60)  # 3 pkg × 20
+		self.assertEqual(by_type["Docs"], 50)
+
+		from bwm_logistics.api.shipments import apply_rate_card
+
+		result = apply_rate_card(ship.name, card.name)
+		self.assertEqual(result["total_charges"], 560)
+
+		# minimum enforced on a light shipment
+		light = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"packages": [{"description": "Envelope", "qty": 1, "weight_kg": 2}],
+			}
+		).insert(ignore_permissions=True)
+		light_charges = {c["charge_type"]: c["amount"] for c in card.compute_charges(light)}
+		self.assertEqual(light_charges["Freight"], 100)
+
+
 class TestDemurrageAlerts(IntegrationTestCase):
 	def test_at_risk_and_digest(self):
 		frappe.set_user("Administrator")
