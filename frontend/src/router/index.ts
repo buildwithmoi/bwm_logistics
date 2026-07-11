@@ -35,7 +35,18 @@ const routes = [
 		component: () => import("@/pages/DispatchRunDetail.vue"),
 	},
 	{ path: "/customers", name: "customers", component: () => import("@/pages/Customers.vue") },
+	{
+		path: "/customers/:name/statement",
+		name: "customer-statement",
+		component: () => import("@/pages/CustomerStatement.vue"),
+	},
 	{ path: "/billing", name: "billing", component: () => import("@/pages/Billing.vue") },
+	{
+		path: "/billing/receipt/:name",
+		name: "billing-receipt",
+		component: () => import("@/pages/ReceiptPrint.vue"),
+	},
+	{ path: "/reports", name: "reports", component: () => import("@/pages/Reports.vue") },
 	{
 		path: "/notifications",
 		name: "notifications",
@@ -59,6 +70,11 @@ const routes = [
 		path: "/portal/pickups",
 		name: "portal-pickups",
 		component: () => import("@/pages/portal/PortalPickups.vue"),
+	},
+	{
+		path: "/portal/statement",
+		name: "portal-statement",
+		component: () => import("@/pages/portal/PortalStatement.vue"),
 	},
 	{
 		path: "/portal/invoices",
@@ -87,7 +103,10 @@ const ACCESS_ALIAS: Record<string, string> = {
 	"shipment-detail": "shipments",
 	"shipment-label": "shipments",
 	"dispatch-run": "dispatch",
+	"customer-statement": "customers",
+	"billing-receipt": "billing",
 	"portal-shipment-detail": "portal-shipments",
+	"portal-statement": "portal-invoices",
 };
 
 // Preferred landing order when a navigation is denied — first allowed wins.

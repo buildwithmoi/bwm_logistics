@@ -34,6 +34,26 @@ def get_branding():
 
 
 @frappe.whitelist()
+def list_branches():
+	"""Branches for the top-bar picker (reuses ERPNext's Branch master)."""
+	require(*ANY_STAFF)
+	if not frappe.db.exists("DocType", "Branch"):
+		return []
+	return frappe.get_all("Branch", pluck="name", order_by="name")
+
+
+@frappe.whitelist()
+def add_branch(name):
+	require(ROLE_MANAGER, ROLE_SYS)
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Branch name is required."))
+	if not frappe.db.exists("Branch", name):
+		frappe.get_doc({"doctype": "Branch", "branch": name}).insert(ignore_permissions=True)
+	return {"name": name}
+
+
+@frappe.whitelist()
 def get_settings():
 	require(*ANY_STAFF)
 	settings = frappe.get_doc("Logistics Settings")

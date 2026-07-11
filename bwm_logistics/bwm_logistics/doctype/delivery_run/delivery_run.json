@@ -12,6 +12,7 @@
   "driver",
   "driver_name",
   "vehicle",
+  "branch",
   "stops_section",
   "stops",
   "totals_section",
@@ -80,6 +81,13 @@
    "fieldtype": "Link",
    "label": "Vehicle",
    "options": "Vehicle"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
   },
   {
    "fieldname": "stops_section",

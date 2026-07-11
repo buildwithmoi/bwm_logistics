@@ -20,7 +20,7 @@ SHIPMENT_FIELDS = [
 	"customer", "direction", "status", "container", "notify_customer",
 	"shipper_name", "shipper_phone", "origin",
 	"consignee_name", "consignee_phone", "destination", "delivery_address",
-	"notes",
+	"notes", "branch",
 ]
 
 CAN_WRITE = (ROLE_MANAGER, ROLE_OPERATIONS, ROLE_SYS)
@@ -28,7 +28,7 @@ CAN_BILL = (ROLE_MANAGER, ROLE_ACCOUNTS, ROLE_SYS)
 
 
 @frappe.whitelist()
-def list_shipments(status=None, container=None, customer=None, search=None, start=0, limit=25):
+def list_shipments(status=None, container=None, customer=None, branch=None, search=None, start=0, limit=25):
 	require(*ANY_STAFF)
 	filters = {}
 	if status:
@@ -37,6 +37,8 @@ def list_shipments(status=None, container=None, customer=None, search=None, star
 		filters["container"] = container
 	if customer:
 		filters["customer"] = customer
+	if branch:
+		filters["branch"] = branch
 	or_filters = None
 	if search:
 		like = f"%{search}%"

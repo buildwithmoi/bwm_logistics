@@ -52,9 +52,17 @@ function pdfUrl(name: string): string {
 
 <template>
 	<div class="mx-auto max-w-4xl">
-		<header class="mb-5">
-			<h1 class="text-2xl font-semibold tracking-tight">Invoices & Payments</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Pay online and your goods release faster.</p>
+		<header class="mb-5 flex flex-wrap items-end gap-3">
+			<div class="min-w-0 flex-1">
+				<h1 class="text-2xl font-semibold tracking-tight">Invoices & Payments</h1>
+				<p class="mt-1 text-sm text-muted-foreground">Pay online and your goods release faster.</p>
+			</div>
+			<RouterLink
+				to="/portal/statement"
+				class="text-sm font-medium text-brand-700 hover:underline"
+			>
+				View statement →
+			</RouterLink>
 		</header>
 
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>

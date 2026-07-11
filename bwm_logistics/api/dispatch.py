@@ -37,7 +37,7 @@ def _my_driver() -> str | None:
 
 # ─── Runs ────────────────────────────────────────────────────────────────────
 @frappe.whitelist()
-def list_runs(status=None, run_date=None, start=0, limit=25):
+def list_runs(status=None, run_date=None, branch=None, start=0, limit=25):
 	"""Dispatchers see all runs; drivers see only their own."""
 	require(*ANY_STAFF)
 	filters = {}
@@ -45,6 +45,8 @@ def list_runs(status=None, run_date=None, start=0, limit=25):
 		filters["status"] = status
 	if run_date:
 		filters["run_date"] = run_date
+	if branch:
+		filters["branch"] = branch
 	if not _is_dispatcher():
 		driver = _my_driver()
 		if not driver:
@@ -84,7 +86,7 @@ def get_run(name):
 	return out
 
 
-RUN_FIELDS = ["driver", "vehicle", "run_date", "notes"]
+RUN_FIELDS = ["driver", "vehicle", "run_date", "notes", "branch"]
 STOP_FIELDS = ["stop_type", "shipment", "pickup_request", "address", "contact_name", "contact_phone", "cod_due"]
 
 

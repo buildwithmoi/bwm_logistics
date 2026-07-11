@@ -151,19 +151,23 @@ async function recordPayment() {
 	if (!payFor.value) return;
 	paySaving.value = true;
 	try {
-		const res = await call<{ outstanding: number }>("bwm_logistics.api.billing.record_payment", {
-			invoice: payFor.value.name,
-			amount: payForm.amount,
-			mode_of_payment: payForm.mode,
-			reference: payForm.reference || null,
-		});
+		const res = await call<{ outstanding: number; payment_entry: string }>(
+			"bwm_logistics.api.billing.record_payment",
+			{
+				invoice: payFor.value.name,
+				amount: payForm.amount,
+				mode_of_payment: payForm.mode,
+				reference: payForm.reference || null,
+			},
+		);
 		toast.success(
 			res.outstanding > 0
 				? `Payment recorded — ${fmtMoney(res.outstanding)} still due`
 				: "Payment recorded — invoice settled",
 		);
 		payFor.value = null;
-		await Promise.all([loadOverview(), loadInvoices()]);
+		// Straight to the printable receipt (back button returns to Billing).
+		router.push(`/billing/receipt/${res.payment_entry}`);
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not record payment");
 	} finally {

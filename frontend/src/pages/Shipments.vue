@@ -6,6 +6,7 @@ import { call } from "@/lib/frappe";
 import { fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
+import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
@@ -18,6 +19,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 const router = useRouter();
 const toast = useToast();
 const session = useSessionStore();
+const branch = useBranchStore();
 
 // ── list ────────────────────────────────────────────────────────────────────
 const rows = ref<Record<string, unknown>[]>([]);
@@ -34,6 +36,7 @@ async function load(append = false) {
 			"bwm_logistics.api.shipments.list_shipments",
 			{
 				status: statusFilter.value || null,
+				branch: branch.filter,
 				search: search.value || null,
 				start: append ? rows.value.length : 0,
 				limit: PAGE,
@@ -139,6 +142,7 @@ async function save() {
 			payload: {
 				...form,
 				container: form.container || null,
+				branch: branch.filter,
 				packages: form.packages.filter((p) => p.description),
 				charges: form.charges.filter((c) => c.charge_type),
 			},

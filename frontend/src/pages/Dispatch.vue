@@ -6,6 +6,7 @@ import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
+import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
@@ -17,6 +18,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 const router = useRouter();
 const toast = useToast();
 const session = useSessionStore();
+const branch = useBranchStore();
 
 // Dispatchers manage runs; a driver-only user gets the same list, scoped
 // server-side to their runs, with none of the management chrome.
@@ -36,7 +38,12 @@ async function load(append = false) {
 	try {
 		const res = await call<{ rows: Record<string, unknown>[]; total: number }>(
 			"bwm_logistics.api.dispatch.list_runs",
-			{ status: statusFilter.value || null, start: append ? rows.value.length : 0, limit: PAGE },
+			{
+				status: statusFilter.value || null,
+				branch: branch.filter,
+				start: append ? rows.value.length : 0,
+				limit: PAGE,
+			},
 		);
 		rows.value = append ? [...rows.value, ...res.rows] : res.rows;
 		total.value = res.total;
@@ -108,7 +115,13 @@ async function saveRun() {
 			...[...form.pickups].map((p) => ({ stop_type: "Pickup", pickup_request: p })),
 		];
 		const res = await call<{ name: string }>("bwm_logistics.api.dispatch.save_run", {
-			payload: { driver: form.driver, vehicle: form.vehicle || null, run_date: form.run_date, stops },
+			payload: {
+				driver: form.driver,
+				vehicle: form.vehicle || null,
+				run_date: form.run_date,
+				branch: branch.filter,
+				stops,
+			},
 		});
 		toast.success(`Run ${res.name} scheduled`);
 		runOpen.value = false;

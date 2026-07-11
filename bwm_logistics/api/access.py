@@ -33,6 +33,7 @@ OPERATOR_PAGES = [
 	{"key": "dispatch", "label": "Dispatch"},
 	{"key": "customers", "label": "Customers"},
 	{"key": "billing", "label": "Billing"},
+	{"key": "reports", "label": "Reports"},
 	{"key": "notifications", "label": "Notifications"},
 	{"key": "settings", "label": "Settings"},
 ]
@@ -53,7 +54,7 @@ PORTAL_KEYS = {p["key"] for p in PORTAL_PAGES}
 ROLE_PAGES = {
 	ROLE_MANAGER: OPERATOR_KEYS,
 	ROLE_OPERATIONS: OPERATOR_KEYS - {"settings"},
-	ROLE_ACCOUNTS: {"dashboard", "customers", "billing", "notifications"},
+	ROLE_ACCOUNTS: {"dashboard", "customers", "billing", "reports", "notifications"},
 	ROLE_DRIVER: {"dispatch"},
 	ROLE_CUSTOMER: PORTAL_KEYS,
 }

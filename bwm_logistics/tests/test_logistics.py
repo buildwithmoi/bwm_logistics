@@ -423,6 +423,63 @@ class TestRateCards(IntegrationTestCase):
 		self.assertEqual(light_charges["Freight"], 100)
 
 
+class TestReportsAndBranches(IntegrationTestCase):
+	"""CI-safe P5 checks — no accounting involved."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def test_reports_shape_without_invoices(self):
+		customer = _make_customer("Reports Customer")
+		frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"packages": [{"description": "Box", "qty": 1}],
+				"charges": [{"charge_type": "Freight", "amount": 75}],
+			}
+		).insert(ignore_permissions=True)
+
+		from bwm_logistics.api.reports import get_reports
+
+		rep = get_reports(months=6)
+		self.assertEqual(len(rep["months"]), 6)
+		self.assertTrue(any(c["customer"] == "Reports Customer" for c in rep["top_customers"]))
+		self.assertTrue(any(s["status"] == "Open" for s in rep["status_breakdown"]))
+
+	def test_branch_filtering(self):
+		if not frappe.db.exists("Branch", "Test Branch A"):
+			frappe.get_doc({"doctype": "Branch", "branch": "Test Branch A"}).insert(ignore_permissions=True)
+		customer = _make_customer("Branch Customer")
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"branch": "Test Branch A",
+				"packages": [{"description": "Box", "qty": 1}],
+			}
+		).insert(ignore_permissions=True)
+
+		from bwm_logistics.api.shipments import list_shipments
+
+		scoped = [r.name for r in list_shipments(branch="Test Branch A")["rows"]]
+		self.assertIn(ship.name, scoped)
+
+	def test_statement_empty_customer(self):
+		from bwm_logistics.api.billing import build_statement
+
+		customer = _make_customer("Empty Statement Customer")
+		stmt = build_statement(customer, "2026-01-01", "2026-01-31")
+		self.assertEqual(stmt["opening_balance"], 0)
+		self.assertEqual(stmt["rows"], [])
+		self.assertEqual(stmt["closing_balance"], 0)
+
+
 class TestDemurrageAlerts(IntegrationTestCase):
 	def test_at_risk_and_digest(self):
 		frappe.set_user("Administrator")

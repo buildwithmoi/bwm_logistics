@@ -132,6 +132,21 @@ def my_pickups():
 
 
 @frappe.whitelist()
+def my_statement(from_date=None, to_date=None):
+	"""The customer's own account statement (printable in the portal)."""
+	customer = require_customer()
+	from frappe.utils import add_months, nowdate
+
+	from bwm_logistics.api.billing import build_statement
+
+	return build_statement(
+		customer,
+		str(from_date or add_months(nowdate(), -3)),
+		str(to_date or nowdate()),
+	)
+
+
+@frappe.whitelist()
 def my_invoices():
 	customer = require_customer()
 	return frappe.get_all(

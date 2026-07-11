@@ -12,6 +12,7 @@
   "current_milestone",
   "column_break_head2",
   "container",
+  "branch",
   "notify_customer",
   "parties_section",
   "shipper_name",
@@ -94,6 +95,13 @@
    "in_standard_filter": 1,
    "label": "Container",
    "options": "Container"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
   },
   {
    "default": "1",

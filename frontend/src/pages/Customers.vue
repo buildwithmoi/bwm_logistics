@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { Plus, Search, Users, Mail, CheckCircle2 } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import { Plus, Search, Users, Mail, CheckCircle2, FileText } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
@@ -10,6 +11,7 @@ import Label from "@/components/ui/Label.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 
+const router = useRouter();
 const toast = useToast();
 const session = useSessionStore();
 
@@ -56,6 +58,7 @@ const columns: Column[] = [
 	{ key: "email_id", label: "Email" },
 	{ key: "shipment_count", label: "Shipments", numeric: true },
 	{ key: "portal_user", label: "Portal access" },
+	{ key: "statement", label: "", class: "w-28" },
 ];
 
 // ── create dialog ───────────────────────────────────────────────────────────
@@ -155,6 +158,15 @@ async function sendInvite() {
 					</span>
 					{{ row.customer_name }}
 				</div>
+			</template>
+			<template #cell-statement="{ row }">
+				<button
+					type="button"
+					class="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-700 hover:underline"
+					@click.stop="router.push(`/customers/${row.name}/statement`)"
+				>
+					<FileText class="h-3.5 w-3.5" /> Statement
+				</button>
 			</template>
 			<template #cell-portal_user="{ row }">
 				<span v-if="row.portal_user" class="inline-flex items-center gap-1.5 text-[13px] text-emerald-700">

@@ -20,11 +20,14 @@ import {
 	MapPin,
 	UserRound,
 	ScanLine,
+	BarChart3,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import BrandLogo from "@/components/BrandLogo.vue";
 import AppsDrawer from "@/components/AppsDrawer.vue";
 import PortalBell from "@/components/PortalBell.vue";
+import BranchPicker from "@/components/BranchPicker.vue";
+import { useBranchStore } from "@/stores/branch";
 import { call } from "@/lib/frappe";
 import { logout as apiLogout } from "@/lib/auth";
 
@@ -116,6 +119,7 @@ async function logout() {
 const operatorMobile: NavItem[] = [
 	...operatorPrimary,
 	{ key: "scan", label: "Scan", icon: ScanLine, to: "/scan" },
+	{ key: "reports", label: "Reports", icon: BarChart3, to: "/reports" },
 	{ key: "notifications", label: "Notifications", icon: BellRing, to: "/notifications" },
 	{ key: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ];
@@ -130,8 +134,11 @@ watch(() => route.path, () => (mobileNavOpen.value = false));
 const businessName = ref("BWM Logistics");
 const logo = ref<string | null>(null);
 
+const branchStore = useBranchStore();
+
 onMounted(async () => {
 	session.loadAccess();
+	if (session.isStaff) branchStore.load();
 	try {
 		const b = await call<{ business_name: string; logo?: string }>(
 			"bwm_logistics.api.settings.get_branding",
@@ -194,6 +201,9 @@ onMounted(async () => {
 
 			<!-- Right cluster (kept hard-right even when the nav is hidden on mobile) -->
 			<div class="ml-auto flex shrink-0 items-center gap-1">
+				<!-- Branch filter (staff only) -->
+				<BranchPicker v-if="!portalMode" />
+
 				<!-- Apps launcher (staff, desktop only — mobile uses the sidebar) -->
 				<div v-if="!portalMode" ref="appsRef" class="relative hidden md:block">
 					<button

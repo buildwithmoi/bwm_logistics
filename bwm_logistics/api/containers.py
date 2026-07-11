@@ -14,20 +14,22 @@ CONTAINER_FIELDS = [
 	"direction", "status", "container_no", "container_type", "milestone_template",
 	"shipping_line", "vessel", "voyage_no", "bl_no", "booking_no", "seal_no",
 	"port_of_loading", "port_of_discharge", "etd", "atd", "eta", "ata",
-	"customs_status", "free_days", "demurrage_start_date", "notes",
+	"customs_status", "free_days", "demurrage_start_date", "notes", "branch",
 ]
 
 CAN_WRITE = (ROLE_MANAGER, ROLE_OPERATIONS, ROLE_SYS)
 
 
 @frappe.whitelist()
-def list_containers(status=None, direction=None, search=None, start=0, limit=25):
+def list_containers(status=None, direction=None, branch=None, search=None, start=0, limit=25):
 	require(*ANY_STAFF)
 	filters = {}
 	if status:
 		filters["status"] = status
 	if direction:
 		filters["direction"] = direction
+	if branch:
+		filters["branch"] = branch
 	or_filters = None
 	if search:
 		like = f"%{search}%"
@@ -40,7 +42,7 @@ def list_containers(status=None, direction=None, search=None, start=0, limit=25)
 		fields=[
 			"name", "container_no", "direction", "status", "current_milestone",
 			"container_type", "shipping_line", "vessel", "eta", "ata", "customs_status",
-			"port_of_loading", "port_of_discharge", "modified",
+			"port_of_loading", "port_of_discharge", "branch", "modified",
 		],
 		order_by="modified desc",
 		start=cint(start),

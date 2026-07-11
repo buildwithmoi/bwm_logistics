@@ -12,6 +12,7 @@ import {
 	BellRing,
 	Settings,
 	ScanLine,
+	BarChart3,
 } from "lucide-vue-next";
 
 // App launcher — a wide, categorised grid (ex_beauty pattern). Core Apps span
@@ -37,6 +38,7 @@ const CORE: App[] = [
 	{ key: "dispatch", label: "Dispatch", to: "/dispatch", icon: MapPin },
 	{ key: "customers", label: "Customers", to: "/customers", icon: Users },
 	{ key: "billing", label: "Billing", to: "/billing", icon: ReceiptText },
+	{ key: "reports", label: "Reports", to: "/reports", icon: BarChart3 },
 	{ key: "notifications", label: "Notifications", to: "/notifications", icon: BellRing },
 ];
 const SETUP: App[] = [

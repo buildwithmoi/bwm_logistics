@@ -13,6 +13,7 @@
   "container_no",
   "container_type",
   "milestone_template",
+  "branch",
   "voyage_section",
   "shipping_line",
   "vessel",
@@ -93,6 +94,13 @@
    "fieldtype": "Link",
    "label": "Milestone Template",
    "options": "Milestone Template"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
   },
   {
    "fieldname": "voyage_section",

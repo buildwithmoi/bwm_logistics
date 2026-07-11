@@ -6,6 +6,7 @@ import { call } from "@/lib/frappe";
 import { fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
+import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
@@ -17,6 +18,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 const router = useRouter();
 const toast = useToast();
 const session = useSessionStore();
+const branch = useBranchStore();
 
 // ── list state ──────────────────────────────────────────────────────────────
 interface Row extends Record<string, unknown> {
@@ -42,6 +44,7 @@ async function load(append = false) {
 			"bwm_logistics.api.containers.list_containers",
 			{
 				status: statusFilter.value || null,
+				branch: branch.filter,
 				search: search.value || null,
 				start: append ? rows.value.length : 0,
 				limit: PAGE,
@@ -128,7 +131,11 @@ async function save() {
 	saving.value = true;
 	try {
 		const res = await call<{ name: string }>("bwm_logistics.api.containers.save_container", {
-			payload: { ...form, free_days: form.free_days ? Number(form.free_days) : null },
+			payload: {
+				...form,
+				free_days: form.free_days ? Number(form.free_days) : null,
+				branch: branch.filter,
+			},
 		});
 		toast.success("Container created");
 		dialogOpen.value = false;
