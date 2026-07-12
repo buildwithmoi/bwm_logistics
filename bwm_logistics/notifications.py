@@ -41,8 +41,14 @@ def dispatch_for_event(event_name: str):
 
 
 def _target_shipments(event) -> list[dict]:
-	"""Shipments whose customers should hear about this event (opted-in only)."""
-	filters = {"notify_customer": 1, "status": ("not in", ["Cancelled"])}
+	"""Shipments whose customers should hear about this event (opted-in only).
+	The customer-set filter is the single choke point that keeps Own Goods
+	(Trading) shipments — which have no customer — out of the pipeline."""
+	filters = {
+		"notify_customer": 1,
+		"status": ("not in", ["Cancelled"]),
+		"customer": ("is", "set"),
+	}
 	if event.shipment:
 		filters["name"] = event.shipment
 	elif event.container:

@@ -45,9 +45,88 @@ def after_install():
 	ensure_roles()
 	ensure_customer_fields()
 	ensure_user_role_field()
+	ensure_invoice_shipment_fields()
+	backfill_invoice_shipment_tags()
+	ensure_default_print_format()
+	ensure_invoice_print_permissions()
 	seed_milestone_templates()
 	seed_logistics_roles()
 	frappe.db.commit()
+
+
+def ensure_invoice_print_permissions():
+	"""Billing staff (Manager/Accounts) download branded invoice PDFs through
+	frappe's download_pdf endpoint, which checks DocType read/print perms —
+	our custom roles need them granted explicitly (portal customers already
+	get theirs from ERPNext's standard Customer role)."""
+	from frappe.permissions import add_permission, update_permission_property
+
+	if not frappe.db.exists("DocType", "Sales Invoice"):
+		return
+	for role in ("Logistics Manager", "Logistics Accounts"):
+		for doctype in ("Sales Invoice", "Purchase Invoice"):
+			add_permission(doctype, role, permlevel=0)  # read=1, idempotent
+			update_permission_property(doctype, role, 0, "print", 1, validate=False)
+			update_permission_property(doctype, role, 0, "submit", 0, validate=False)
+
+
+def ensure_invoice_shipment_fields():
+	"""Sales/Purchase Invoice → Shipment tag. The SINGLE source of truth for
+	shipment P&L: revenue = tagged Sales Invoices, cost = tagged Purchase
+	Invoices (PRD P7)."""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	field = {
+		"fieldname": "bwm_shipment",
+		"fieldtype": "Link",
+		"label": "Shipment",
+		"options": "Shipment",
+		"insert_after": "customer" if frappe.db.exists("DocType", "Sales Invoice") else None,
+		"search_index": 1,
+	}
+	doctypes = {}
+	if frappe.db.exists("DocType", "Sales Invoice"):
+		doctypes["Sales Invoice"] = [dict(field, insert_after="customer")]
+	if frappe.db.exists("DocType", "Purchase Invoice"):
+		doctypes["Purchase Invoice"] = [dict(field, insert_after="supplier")]
+	if doctypes:
+		create_custom_fields(doctypes, ignore_validate=True)
+
+
+def backfill_invoice_shipment_tags():
+	"""Tag legacy freight invoices (created before P7) from
+	Shipment.sales_invoice. Idempotent — only fills empty tags."""
+	if not frappe.db.exists("DocType", "Sales Invoice"):
+		return
+	if not frappe.db.has_column("Sales Invoice", "bwm_shipment"):
+		return
+	for row in frappe.get_all(
+		"Shipment",
+		filters={"sales_invoice": ("is", "set")},
+		fields=["name", "sales_invoice"],
+		limit_page_length=0,
+	):
+		if not frappe.db.get_value("Sales Invoice", row.sales_invoice, "bwm_shipment"):
+			frappe.db.set_value(
+				"Sales Invoice", row.sales_invoice, "bwm_shipment", row.name, update_modified=False
+			)
+
+
+def ensure_default_print_format():
+	"""Make the branded 'BWM Invoice' format the Sales Invoice default so
+	every Download PDF (operator + portal) uses it."""
+	if not frappe.db.exists("Print Format", "BWM Invoice"):
+		return  # synced on migrate; next run picks it up
+	frappe.make_property_setter(
+		{
+			"doctype": "Sales Invoice",
+			"doctype_or_field": "DocType",
+			"property": "default_print_format",
+			"value": "BWM Invoice",
+			"property_type": "Data",
+		},
+		is_system_generated=True,
+	)
 
 
 def ensure_user_role_field():

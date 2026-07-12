@@ -46,7 +46,8 @@ async function payNow(inv: Invoice) {
 }
 
 function pdfUrl(name: string): string {
-	return `/api/method/frappe.utils.print_format.download_pdf?doctype=Sales%20Invoice&name=${encodeURIComponent(name)}`;
+	// Branded server PDF (BWM Invoice print format).
+	return `/api/method/frappe.utils.print_format.download_pdf?doctype=Sales%20Invoice&name=${encodeURIComponent(name)}&format=BWM%20Invoice&no_letterhead=1`;
 }
 </script>
 

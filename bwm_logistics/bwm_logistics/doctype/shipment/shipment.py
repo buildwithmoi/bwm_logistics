@@ -25,9 +25,25 @@ class Shipment(Document):
 		prefix = (frappe.db.get_single_value("Logistics Settings", "tracking_prefix") or "BWM").strip().upper()
 		self.name = make_autoname(f"{prefix}-.######")
 
+	def is_trading(self) -> bool:
+		# NULL-safe: rows created before shipment_type existed are Customer Cargo.
+		return (self.shipment_type or "Customer Cargo") == "Own Goods (Trading)"
+
 	def validate(self):
+		self.validate_customer()
 		self.compute_totals()
 		self.sync_direction_from_container()
+
+	def validate_customer(self):
+		if self.is_trading():
+			# Own goods: no customer, and nobody external to notify.
+			self.notify_customer = 0
+			if not self.customer:
+				self.customer_name = None
+		elif not self.customer:
+			frappe.throw(_("Customer is required for Customer Cargo shipments."))
+		if not self.customer:
+			self.customer_name = None
 
 	def sync_direction_from_container(self):
 		if self.container and not self.direction:
@@ -49,6 +65,10 @@ class Shipment(Document):
 
 	def make_sales_invoice(self):
 		"""One-click Sales Invoice from this shipment's charges."""
+		if not self.customer:
+			frappe.throw(
+				_("This trading shipment has no customer to invoice — raise sales from Billing → New invoice and record costs under Purchases instead.")
+			)
 		if self.sales_invoice:
 			frappe.throw(_("Shipment {0} is already invoiced ({1}).").format(self.name, self.sales_invoice))
 		if not self.charges:
@@ -57,6 +77,9 @@ class Shipment(Document):
 		item_code = _ensure_charge_item()
 		invoice = frappe.new_doc("Sales Invoice")
 		invoice.customer = self.customer
+		# P&L revenue is counted solely via this tag (never via
+		# Shipment.sales_invoice — that would double count).
+		invoice.bwm_shipment = self.name
 		for charge in self.charges:
 			invoice.append(
 				"items",

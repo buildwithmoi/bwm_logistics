@@ -4,6 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "shipment_type",
   "customer",
   "customer_name",
   "column_break_head",
@@ -41,12 +42,21 @@
  ],
  "fields": [
   {
+   "default": "Customer Cargo",
+   "description": "Own Goods (Trading): your own imported/exported goods — no customer; carries purchase costs and tagged sales for a P&L.",
+   "fieldname": "shipment_type",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Shipment Type",
+   "options": "Customer Cargo\nOwn Goods (Trading)"
+  },
+  {
+   "description": "Required for Customer Cargo; empty for Own Goods (Trading).",
    "fieldname": "customer",
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Customer",
-   "options": "Customer",
-   "reqd": 1
+   "options": "Customer"
   },
   {
    "fetch_from": "customer.customer_name",

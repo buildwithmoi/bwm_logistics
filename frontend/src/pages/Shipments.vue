@@ -16,6 +16,7 @@ import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import DirectionBadge from "@/components/DirectionBadge.vue";
 
 const router = useRouter();
 const toast = useToast();
@@ -28,6 +29,7 @@ const total = ref(0);
 const loading = ref(false);
 const search = ref("");
 const statusFilter = ref("");
+const directionFilter = ref("");
 const PAGE = 25;
 
 async function load(append = false) {
@@ -37,6 +39,7 @@ async function load(append = false) {
 			"bwm_logistics.api.shipments.list_shipments",
 			{
 				status: statusFilter.value || null,
+				direction: directionFilter.value || null,
 				branch: branch.filter,
 				search: search.value || null,
 				start: append ? rows.value.length : 0,
@@ -57,11 +60,13 @@ watch(search, () => {
 	searchTimer = setTimeout(() => load(), 300);
 });
 watch(statusFilter, () => load());
+watch(directionFilter, () => load());
 onMounted(load);
 
 const columns: Column[] = [
 	{ key: "name", label: "Tracking No" },
 	{ key: "customer_name", label: "Customer" },
+	{ key: "direction", label: "Direction" },
 	{ key: "status", label: "Status" },
 	{ key: "container", label: "Container" },
 	{ key: "destination", label: "Destination" },
@@ -85,6 +90,7 @@ interface ChargeRow {
 	amount: number | null;
 }
 const form = reactive({
+	shipment_type: "Customer Cargo",
 	customer: "" as string | null,
 	container: "" as string | null,
 	direction: "Import",
@@ -142,8 +148,10 @@ function addCharge() {
 	form.charges.push({ charge_type: "", amount: null });
 }
 
+const isTrading = computed(() => form.shipment_type === "Own Goods (Trading)");
+
 async function save() {
-	if (!form.customer) {
+	if (!isTrading.value && !form.customer) {
 		toast.warning("Pick a customer");
 		return;
 	}
@@ -156,6 +164,7 @@ async function save() {
 		const res = await call<{ name: string }>("bwm_logistics.api.shipments.save_shipment", {
 			payload: {
 				...form,
+				customer: isTrading.value ? null : form.customer,
 				container: form.container || null,
 				branch: branch.filter,
 				packages: form.packages.filter((p) => p.description),
@@ -179,6 +188,24 @@ async function save() {
 			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Shipments</h1>
 			<Button v-if="canCreate" @click="openDialog"><Plus class="h-4 w-4" /> New shipment</Button>
 		</header>
+
+		<!-- Direction — the primary lens (Import vs Export) -->
+		<div class="mb-4 flex gap-1.5">
+			<button
+				v-for="d in ['', 'Import', 'Export']"
+				:key="d"
+				type="button"
+				class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+				:class="
+					directionFilter === d
+						? 'bg-coal-900 text-white'
+						: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+				"
+				@click="directionFilter = d"
+			>
+				{{ d === "Import" ? "⬇ Imports" : d === "Export" ? "⬆ Exports" : "All" }}
+			</button>
+		</div>
 
 		<div class="mb-4 flex flex-wrap items-center gap-2">
 			<div class="relative min-w-56 flex-1 sm:max-w-xs">
@@ -218,6 +245,13 @@ async function save() {
 					<Package class="h-4 w-4" /> {{ row.name }}
 				</span>
 			</template>
+			<template #cell-customer_name="{ row }">
+				<span v-if="row.shipment_type === 'Own Goods (Trading)'" class="inline-flex items-center rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-brand-700">
+					Own goods
+				</span>
+				<template v-else>{{ row.customer_name || "—" }}</template>
+			</template>
+			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>
 			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
 			<template #cell-container="{ value }">
 				<span :class="!value && 'text-gray-400'">{{ value || "loose cargo" }}</span>
@@ -227,8 +261,25 @@ async function save() {
 
 		<!-- ── New shipment ──────────────────────────────────────────────── -->
 		<Dialog v-model:open="dialogOpen" title="New shipment" size="xl">
+			<!-- Type toggle -->
+			<div class="mb-4 flex gap-2">
+				<button
+					v-for="t in ['Customer Cargo', 'Own Goods (Trading)']"
+					:key="t"
+					type="button"
+					class="flex-1 rounded-xl border px-4 py-3 text-left transition-colors"
+					:class="form.shipment_type === t ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:bg-gray-50'"
+					@click="form.shipment_type = t"
+				>
+					<span class="block text-sm font-semibold">{{ t }}</span>
+					<span class="block text-xs text-muted-foreground">
+						{{ t === "Customer Cargo" ? "A customer's goods — they get tracked & notified" : "Your own goods to sell — carries costs & sales for a P&L" }}
+					</span>
+				</button>
+			</div>
+
 			<div class="grid gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5">
+				<div v-if="!isTrading" class="space-y-1.5">
 					<Label required>Customer</Label>
 					<SearchCombo
 						v-model="form.customer"

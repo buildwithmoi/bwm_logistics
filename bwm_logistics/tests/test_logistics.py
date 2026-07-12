@@ -437,13 +437,8 @@ class TestLogisticsRoles(IntegrationTestCase):
 
 		from bwm_logistics.api import access, staff
 
-		frappe.get_doc(
-			{
-				"doctype": "Logistics Role",
-				"role_name": "CI Test Role",
-				"pages": json.dumps(["dashboard", "shipments"]),
-			}
-		).insert(ignore_permissions=True)
+		# save_role upserts — idempotent on dev sites with leftover data.
+		staff.save_role({"role_name": "CI Test Role", "pages": ["dashboard", "shipments"]})
 
 		email = "ci-role-user@bwm.test"
 		if not frappe.db.exists("User", email):
@@ -471,6 +466,8 @@ class TestLogisticsRoles(IntegrationTestCase):
 		from bwm_logistics.api import access, staff
 
 		# Even if someone force-writes settings into the JSON, validate strips it.
+		if frappe.db.exists("Logistics Role", "CI Sneaky Role"):
+			frappe.delete_doc("Logistics Role", "CI Sneaky Role", force=True)
 		doc = frappe.get_doc(
 			{
 				"doctype": "Logistics Role",
@@ -536,6 +533,93 @@ class TestReportsAndBranches(IntegrationTestCase):
 		self.assertEqual(stmt["opening_balance"], 0)
 		self.assertEqual(stmt["rows"], [])
 		self.assertEqual(stmt["closing_balance"], 0)
+
+
+class TestTradingShipments(IntegrationTestCase):
+	"""P7 CI-safe checks: shipment_type validation and notification scoping.
+	(PI/SI creation + P&L math need accounting setup — covered by p7_verify
+	on a configured site.)"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def test_trading_needs_no_customer_and_never_notifies(self):
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"shipment_type": "Own Goods (Trading)",
+				"direction": "Import",
+				"notify_customer": 1,
+				"packages": [{"description": "Own stock", "qty": 10}],
+			}
+		).insert(ignore_permissions=True)
+		self.assertFalse(ship.customer)
+		self.assertEqual(ship.notify_customer, 0)
+
+		with self.assertRaises(frappe.ValidationError):
+			ship.make_sales_invoice()
+
+	def test_customer_cargo_requires_customer(self):
+		with self.assertRaises(frappe.ValidationError):
+			frappe.get_doc(
+				{
+					"doctype": "Shipment",
+					"direction": "Import",
+					"packages": [{"description": "Box", "qty": 1}],
+				}
+			).insert(ignore_permissions=True)
+
+	def test_notification_targets_skip_trading(self):
+		from bwm_logistics.notifications import _target_shipments
+
+		container = frappe.get_doc(
+			{"doctype": "Container", "direction": "Import", "container_no": "TSTU3054383"}
+		).insert(ignore_permissions=True)
+		customer = _make_customer("Trading Notify Customer")
+		cargo = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"container": container.name,
+				"notify_customer": 1,
+				"packages": [{"description": "Box", "qty": 1}],
+			}
+		).insert(ignore_permissions=True)
+		trading = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"shipment_type": "Own Goods (Trading)",
+				"direction": "Import",
+				"container": container.name,
+				"packages": [{"description": "Own stock", "qty": 5}],
+			}
+		).insert(ignore_permissions=True)
+
+		targets = {s.name for s in _target_shipments(frappe._dict(shipment=None, container=container.name))}
+		self.assertIn(cargo.name, targets)
+		self.assertNotIn(trading.name, targets)
+
+	def test_direction_filter_on_list(self):
+		customer = _make_customer("Direction Filter Customer")
+		exp = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Export",
+				"packages": [{"description": "Box", "qty": 1}],
+			}
+		).insert(ignore_permissions=True)
+
+		from bwm_logistics.api.shipments import list_shipments
+
+		exports = [r.name for r in list_shipments(direction="Export")["rows"]]
+		imports = [r.name for r in list_shipments(direction="Import")["rows"]]
+		self.assertIn(exp.name, exports)
+		self.assertNotIn(exp.name, imports)
 
 
 class TestDemurrageAlerts(IntegrationTestCase):

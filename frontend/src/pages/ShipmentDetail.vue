@@ -13,6 +13,7 @@ import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import DirectionBadge from "@/components/DirectionBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
 
 const route = useRoute();
@@ -41,6 +42,7 @@ async function load() {
 	loading.value = true;
 	try {
 		data.value = await call<ShipmentData>("bwm_logistics.api.shipments.get_shipment", { name: name.value });
+		loadPnl();
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not load shipment");
 		router.push("/shipments");
@@ -52,6 +54,26 @@ onMounted(load);
 
 const canEdit = computed(() => session.can("shipments", "edit"));
 const canBill = computed(() => session.canSee("billing") || session.hasRole("Logistics Manager", "System Manager"));
+const isTrading = computed(() => data.value?.shipment_type === "Own Goods (Trading)");
+
+// ── P&L (Managers/Accounts only — server enforces too) ─────────────────────
+interface Pnl {
+	revenue: number;
+	cost: number;
+	profit: number;
+	margin_pct: number | null;
+	sales: Array<{ name: string; customer_name?: string; grand_total: number; outstanding_amount: number; status: string }>;
+	purchases: Array<{ name: string; supplier_name?: string; grand_total: number; outstanding_amount: number; status: string }>;
+}
+const pnl = ref<Pnl | null>(null);
+async function loadPnl() {
+	if (!canBill.value) return;
+	try {
+		pnl.value = await call<Pnl>("bwm_logistics.api.billing.shipment_pnl", { shipment: name.value });
+	} catch {
+		/* card hidden on error */
+	}
+}
 
 // ── record shipment event ───────────────────────────────────────────────────
 const eventOpen = ref(false);
@@ -165,10 +187,14 @@ async function makeInvoice() {
 					<div class="flex flex-wrap items-center gap-2">
 						<h1 class="text-2xl font-semibold tracking-tight">{{ data.name }}</h1>
 						<StatusBadge :status="data.status" />
-						<span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11.5px] font-semibold text-gray-600">{{ data.direction }}</span>
+						<DirectionBadge :direction="data.direction" />
+						<span
+							v-if="isTrading"
+							class="rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-brand-700"
+						>Own goods</span>
 					</div>
 					<p class="text-sm text-muted-foreground">
-						{{ data.customer_name }} · {{ data.destination || "destination not set" }}
+						{{ isTrading ? "Trading shipment" : data.customer_name }} · {{ data.destination || "destination not set" }}
 						<span v-if="data.current_milestone"> · {{ data.current_milestone }}</span>
 					</p>
 				</div>
@@ -186,6 +212,64 @@ async function makeInvoice() {
 					<ReceiptText class="h-4 w-4" /> Create invoice
 				</Button>
 			</header>
+
+			<!-- P&L (Managers/Accounts — server-gated) -->
+			<div v-if="canBill && pnl" class="mb-4 rounded-3xl bg-coal-900 p-6 text-white">
+				<div class="flex flex-wrap items-center gap-x-8 gap-y-3">
+					<div class="min-w-0">
+						<div class="label-caps !text-brand-400">Profit & loss</div>
+						<div class="mt-1 text-2xl font-bold tabular-nums" :class="pnl.profit >= 0 ? 'text-emerald-400' : 'text-red-400'">
+							{{ pnl.profit >= 0 ? "+" : "" }}{{ fmtMoney(pnl.profit) }}
+							<span v-if="pnl.margin_pct !== null" class="ml-1 text-sm font-medium text-white/50">{{ pnl.margin_pct }}% margin</span>
+						</div>
+					</div>
+					<div class="flex gap-8 text-sm">
+						<div>
+							<div class="text-white/50">Revenue</div>
+							<div class="font-semibold tabular-nums">{{ fmtMoney(pnl.revenue) }}</div>
+							<div class="text-xs text-white/40">{{ pnl.sales.length }} invoice(s)</div>
+						</div>
+						<div>
+							<div class="text-white/50">Costs</div>
+							<div class="font-semibold tabular-nums">{{ fmtMoney(pnl.cost) }}</div>
+							<div class="text-xs text-white/40">{{ pnl.purchases.length }} purchase(s)</div>
+						</div>
+					</div>
+					<div class="ml-auto flex flex-wrap gap-2">
+						<button
+							type="button"
+							class="rounded-full border border-white/25 px-4 py-2 text-sm font-semibold transition-colors hover:border-brand-400 hover:text-brand-300"
+							@click="router.push(`/billing?tab=purchases&shipment=${name}&new=1`)"
+						>
+							Record cost
+						</button>
+						<button
+							type="button"
+							class="rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-coal-900 transition-colors hover:bg-brand-400"
+							@click="router.push(`/billing?tab=sales&shipment=${name}&new=1`)"
+						>
+							Record sale
+						</button>
+					</div>
+				</div>
+				<!-- Linked documents -->
+				<div v-if="pnl.sales.length || pnl.purchases.length" class="mt-4 grid gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
+					<div v-if="pnl.sales.length">
+						<div class="label-caps mb-2 !text-white/40">Sales</div>
+						<div v-for="s in pnl.sales" :key="s.name" class="flex justify-between py-1 text-sm">
+							<span class="truncate text-white/80">{{ s.name }}<span v-if="s.customer_name" class="text-white/40"> · {{ s.customer_name }}</span></span>
+							<span class="shrink-0 tabular-nums">{{ fmtMoney(s.grand_total) }}<span v-if="s.outstanding_amount > 0" class="text-amber-400"> ({{ fmtMoney(s.outstanding_amount) }} due)</span></span>
+						</div>
+					</div>
+					<div v-if="pnl.purchases.length">
+						<div class="label-caps mb-2 !text-white/40">Purchases</div>
+						<div v-for="p in pnl.purchases" :key="p.name" class="flex justify-between py-1 text-sm">
+							<span class="truncate text-white/80">{{ p.name }}<span v-if="p.supplier_name" class="text-white/40"> · {{ p.supplier_name }}</span></span>
+							<span class="shrink-0 tabular-nums">{{ fmtMoney(p.grand_total) }}<span v-if="p.outstanding_amount > 0" class="text-amber-400"> ({{ fmtMoney(p.outstanding_amount) }} owed)</span></span>
+						</div>
+					</div>
+				</div>
+			</div>
 
 			<div class="grid gap-4 lg:grid-cols-12">
 				<div class="space-y-4 lg:col-span-5">

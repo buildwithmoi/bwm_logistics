@@ -13,6 +13,7 @@ import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import DirectionBadge from "@/components/DirectionBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
 
 const route = useRoute();
@@ -148,9 +149,7 @@ const infoRows = computed(() => [
 							{{ doc.container_no || name }}
 						</h1>
 						<StatusBadge :status="String(doc.status)" />
-						<span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11.5px] font-semibold text-gray-600">
-							{{ doc.direction }}
-						</span>
+						<DirectionBadge :direction="String(doc.direction)" />
 					</div>
 					<p class="text-sm text-muted-foreground">
 						{{ name }} · {{ doc.container_type || "type not set" }}
@@ -224,7 +223,10 @@ const infoRows = computed(() => [
 								<td class="py-2.5 pr-4 font-medium text-brand-700">
 									<span class="inline-flex items-center gap-1.5"><Package class="h-3.5 w-3.5" /> {{ s.name }}</span>
 								</td>
-								<td class="py-2.5 pr-4">{{ s.customer_name || s.customer }}</td>
+								<td class="py-2.5 pr-4">
+									<span v-if="!s.customer" class="inline-flex items-center rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">Own goods</span>
+									<template v-else>{{ s.customer_name || s.customer }}</template>
+								</td>
 								<td class="py-2.5 pr-4"><StatusBadge :status="String(s.status)" /></td>
 								<td class="py-2.5 pr-4 text-right tabular-nums">{{ s.total_packages || 0 }}</td>
 								<td class="py-2.5 text-right tabular-nums">{{ fmtMoney(s.total_charges as number) }}</td>

@@ -15,6 +15,7 @@ import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import DirectionBadge from "@/components/DirectionBadge.vue";
 
 const router = useRouter();
 const toast = useToast();
@@ -36,6 +37,7 @@ const total = ref(0);
 const loading = ref(false);
 const search = ref("");
 const statusFilter = ref<string>("");
+const directionFilter = ref<string>("");
 const PAGE = 25;
 
 async function load(append = false) {
@@ -45,6 +47,7 @@ async function load(append = false) {
 			"bwm_logistics.api.containers.list_containers",
 			{
 				status: statusFilter.value || null,
+				direction: directionFilter.value || null,
 				branch: branch.filter,
 				search: search.value || null,
 				start: append ? rows.value.length : 0,
@@ -65,6 +68,7 @@ watch(search, () => {
 	searchTimer = setTimeout(() => load(), 300);
 });
 watch(statusFilter, () => load());
+watch(directionFilter, () => load());
 onMounted(load);
 
 const columns: Column[] = [
@@ -175,6 +179,24 @@ async function save() {
 			<Button v-if="canCreate" @click="openDialog"><Plus class="h-4 w-4" /> New container</Button>
 		</header>
 
+		<!-- Direction — the primary lens (Import vs Export) -->
+		<div class="mb-4 flex gap-1.5">
+			<button
+				v-for="d in ['', 'Import', 'Export']"
+				:key="d"
+				type="button"
+				class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+				:class="
+					directionFilter === d
+						? 'bg-coal-900 text-white'
+						: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+				"
+				@click="directionFilter = d"
+			>
+				{{ d === "Import" ? "⬇ Imports" : d === "Export" ? "⬆ Exports" : "All" }}
+			</button>
+		</div>
+
 		<!-- Filters -->
 		<div class="mb-4 flex flex-wrap items-center gap-2">
 			<div class="relative min-w-56 flex-1 sm:max-w-xs">
@@ -220,6 +242,7 @@ async function save() {
 					</div>
 				</div>
 			</template>
+			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>
 			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
 			<template #cell-current_milestone="{ value }">
 				<span :class="!value && 'text-gray-400'">{{ value || "No milestones yet" }}</span>

@@ -52,13 +52,15 @@ def overview():
 
 
 def uninvoiced_shipments() -> list[dict]:
-	"""Shipments with charges but no Sales Invoice yet."""
+	"""Customer shipments with charges but no Sales Invoice yet. (Trading
+	shipments have no customer to invoice — excluded.)"""
 	return frappe.get_all(
 		"Shipment",
 		filters={
 			"sales_invoice": ("is", "not set"),
 			"total_charges": (">", 0),
 			"status": ("not in", ["Cancelled"]),
+			"customer": ("is", "set"),
 		},
 		fields=["name", "customer_name", "status", "total_charges", "modified"],
 		order_by="modified desc",
@@ -109,13 +111,105 @@ def list_invoices(status=None, search=None, start=0, limit=25):
 	return {"rows": rows, "total": frappe.db.count("Sales Invoice", filters)}
 
 
+# ─── Free-form sales invoicing (P7) ─────────────────────────────────────────
+@frappe.whitelist()
+def new_invoice(payload):
+	"""Raise a Sales Invoice directly (not from shipment charges): pick a
+	customer, add line items, optionally tag a shipment so the P&L sees it."""
+	require(*CAN_BILL)
+	data = frappe.parse_json(payload) if isinstance(payload, str) else payload
+
+	customer = data.get("customer")
+	if not customer or not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Pick a customer."))
+	lines = [
+		l
+		for l in (data.get("lines") or [])
+		if l.get("description") and flt(l.get("rate")) > 0 and flt(l.get("qty") or 1) > 0
+	]
+	if not lines:
+		frappe.throw(_("Add at least one line with a rate."))
+	shipment = data.get("shipment") or None
+	if shipment and not frappe.db.exists("Shipment", shipment):
+		frappe.throw(_("Unknown shipment {0}.").format(shipment))
+
+	from bwm_logistics.bwm_logistics.doctype.shipment.shipment import _ensure_charge_item
+
+	item_code = _ensure_charge_item()
+	invoice = frappe.new_doc("Sales Invoice")
+	invoice.customer = customer
+	invoice.bwm_shipment = shipment
+	if data.get("due_date"):
+		invoice.due_date = data["due_date"]
+	for line in lines:
+		invoice.append(
+			"items",
+			{
+				"item_code": item_code,
+				"item_name": line["description"][:140],
+				"description": line["description"],
+				"qty": flt(line.get("qty") or 1),
+				"rate": flt(line["rate"]),
+			},
+		)
+	invoice.flags.ignore_permissions = True
+	invoice.set_missing_values()
+	invoice.insert(ignore_permissions=True)
+	invoice.submit()
+	return {"sales_invoice": invoice.name, "grand_total": invoice.grand_total}
+
+
+# ─── Shipment P&L (P7 — Managers/Accounts only) ─────────────────────────────
+@frappe.whitelist()
+def shipment_pnl(shipment):
+	"""Profit & loss for one shipment: revenue = submitted Sales Invoices
+	tagged bwm_shipment, cost = submitted Purchase Invoices tagged the same.
+	Profit numbers are sensitive — CAN_BILL roles only."""
+	require(*CAN_BILL)
+	if not frappe.db.exists("Shipment", shipment):
+		frappe.throw(_("Unknown shipment {0}.").format(shipment))
+
+	sales = frappe.get_all(
+		"Sales Invoice",
+		filters={"docstatus": 1, "bwm_shipment": shipment},
+		fields=["name", "posting_date", "customer_name", "grand_total", "outstanding_amount", "status"],
+		order_by="posting_date",
+	)
+	purchases = frappe.get_all(
+		"Purchase Invoice",
+		filters={"docstatus": 1, "bwm_shipment": shipment},
+		fields=["name", "posting_date", "supplier_name", "grand_total", "outstanding_amount", "status"],
+		order_by="posting_date",
+	)
+	revenue = round(sum(flt(r.grand_total) for r in sales), 2)
+	cost = round(sum(flt(r.grand_total) for r in purchases), 2)
+	profit = round(revenue - cost, 2)
+	return {
+		"shipment": shipment,
+		"revenue": revenue,
+		"cost": cost,
+		"profit": profit,
+		"margin_pct": round(profit / revenue * 100, 1) if revenue else None,
+		"sales": sales,
+		"purchases": purchases,
+	}
+
+
 # ─── Payments ────────────────────────────────────────────────────────────────
-def make_payment_entry(invoice: str, amount: float, mode_of_payment: str, reference: str | None = None) -> str:
+def make_payment_entry(
+	invoice: str,
+	amount: float,
+	mode_of_payment: str,
+	reference: str | None = None,
+	doctype: str = "Sales Invoice",
+) -> str:
 	"""Submit a Payment Entry against an invoice. Shared by manual recording
-	(here) and COD reconciliation (api/dispatch.py)."""
+	(here), COD reconciliation (api/dispatch.py), and supplier payments
+	(api/purchasing.py — ERPNext returns payment_type='Pay' for Purchase
+	Invoices automatically)."""
 	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
-	pe = get_payment_entry("Sales Invoice", invoice)
+	pe = get_payment_entry(doctype, invoice)
 	pe.mode_of_payment = mode_of_payment
 	pe.paid_amount = amount
 	pe.received_amount = amount

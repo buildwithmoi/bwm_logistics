@@ -17,7 +17,7 @@ from bwm_logistics.api._perm import (
 )
 
 SHIPMENT_FIELDS = [
-	"customer", "direction", "status", "container", "notify_customer",
+	"customer", "shipment_type", "direction", "status", "container", "notify_customer",
 	"shipper_name", "shipper_phone", "origin",
 	"consignee_name", "consignee_phone", "destination", "delivery_address",
 	"notes", "branch",
@@ -28,7 +28,9 @@ CAN_BILL = (ROLE_MANAGER, ROLE_ACCOUNTS, ROLE_SYS)
 
 
 @frappe.whitelist()
-def list_shipments(status=None, container=None, customer=None, branch=None, search=None, start=0, limit=25):
+def list_shipments(
+	status=None, container=None, customer=None, branch=None, direction=None, search=None, start=0, limit=25
+):
 	require(*ANY_STAFF)
 	filters = {}
 	if status:
@@ -39,6 +41,8 @@ def list_shipments(status=None, container=None, customer=None, branch=None, sear
 		filters["customer"] = customer
 	if branch:
 		filters["branch"] = branch
+	if direction:
+		filters["direction"] = direction
 	or_filters = None
 	if search:
 		like = f"%{search}%"
@@ -49,8 +53,8 @@ def list_shipments(status=None, container=None, customer=None, branch=None, sear
 		filters=filters,
 		or_filters=or_filters,
 		fields=[
-			"name", "customer", "customer_name", "direction", "status", "current_milestone",
-			"container", "destination", "total_packages", "total_weight_kg",
+			"name", "customer", "customer_name", "shipment_type", "direction", "status",
+			"current_milestone", "container", "destination", "total_packages", "total_weight_kg",
 			"total_charges", "sales_invoice", "modified",
 		],
 		order_by="modified desc",
