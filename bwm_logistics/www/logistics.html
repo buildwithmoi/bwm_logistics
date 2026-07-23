@@ -2,8 +2,17 @@
 <html lang="{{ frappe.local.lang }}">
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 	<title>{{ _("BWM Logistics") }}</title>
+	{# PWA (P8): manifest + SW are served at /logistics/* by bwm_logistics/pwa.py #}
+	<link rel="manifest" href="/logistics/manifest.webmanifest" />
+	<meta name="theme-color" content="#0f0f10" />
+	<link rel="apple-touch-icon" href="/assets/bwm_logistics/dist/main/icons/apple-touch-icon.png" />
+	<link rel="icon" type="image/svg+xml" href="/assets/bwm_logistics/dist/main/brand-icon.svg" />
+	<meta name="mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+	<meta name="apple-mobile-web-app-title" content="BWM Logistics" />
 	{%- if entry_css %}
 	<link rel="stylesheet" href="{{ entry_css }}" />
 	{%- endif %}

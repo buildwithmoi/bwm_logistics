@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offline — BWM Logistics</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: #ffffff; color: #0f0f10;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    text-align: center; padding: 24px;
+  }
+  .card { max-width: 22rem; }
+  .mark { margin: 0 auto 20px; width: 72px; height: 72px; border-radius: 18px; background: #0f0f10;
+    display: flex; align-items: center; justify-content: center; }
+  h1 { font-size: 1.25rem; margin: 0 0 8px; letter-spacing: -0.01em; }
+  p { margin: 0 0 20px; font-size: 0.9rem; color: #6b7280; line-height: 1.5; }
+  button {
+    background: #b8860b; color: #0f0f10; border: 0; border-radius: 999px;
+    padding: 12px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #d4a12b; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="12" width="30" height="19" rx="2.5" stroke="#b8860b" stroke-width="2.6"/>
+        <path d="M12.5 12v19M20 12v19M27.5 12v19" stroke="#b8860b" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+        <path d="M5 17h30" stroke="#b8860b" stroke-width="2" opacity="0.55"/>
+        <path d="M20 12V7" stroke="#b8860b" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M14 7h12" stroke="#b8860b" stroke-width="2.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>You&rsquo;re offline</h1>
+    <p>BWM Logistics needs a connection to load fresh data and record actions. Reconnect and try again.</p>
+    <button onclick="location.reload()">Retry</button>
+  </div>
+</body>
+</html>

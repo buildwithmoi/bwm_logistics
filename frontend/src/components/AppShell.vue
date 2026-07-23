@@ -21,6 +21,7 @@ import {
 	UserRound,
 	ScanLine,
 	BarChart3,
+	Boxes,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import BrandLogo from "@/components/BrandLogo.vue";
@@ -49,6 +50,7 @@ const operatorPrimary: NavItem[] = [
 	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard, to: "/" },
 	{ key: "containers", label: "Containers", icon: Container, to: "/containers" },
 	{ key: "shipments", label: "Shipments", icon: Package, to: "/shipments" },
+	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
 	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
 	{ key: "customers", label: "Customers", icon: Users, to: "/customers" },
 	{ key: "billing", label: "Billing", icon: ReceiptText, to: "/billing" },
@@ -126,6 +128,20 @@ const operatorMobile: NavItem[] = [
 const mobileNavOpen = ref(false);
 const mobileNavVisible = computed(() =>
 	(portalMode.value ? portalPrimary : operatorMobile).filter((i) => session.canSee(i.key)),
+);
+
+// Bottom tab bar (mobile / PWA): up to 4 tabs around a raised Scan action —
+// first-allowed wins, so drivers naturally get just Dispatch (+More).
+const bottomNavCandidates: NavItem[] = [
+	{ key: "dashboard", label: "Home", icon: LayoutDashboard, to: "/" },
+	{ key: "shipments", label: "Shipments", icon: Package, to: "/shipments" },
+	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
+	{ key: "containers", label: "Containers", icon: Container, to: "/containers" },
+	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
+	{ key: "billing", label: "Billing", icon: ReceiptText, to: "/billing" },
+];
+const bottomNav = computed(() =>
+	bottomNavCandidates.filter((i) => session.canSee(i.key)).slice(0, 4),
 );
 // Close the drawer whenever the route changes.
 watch(() => route.path, () => (mobileNavOpen.value = false));
@@ -361,8 +377,54 @@ onMounted(async () => {
 		</Transition>
 
 		<!-- ── Main area ───────────────────────────────────────────────────── -->
-		<main class="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+		<main class="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:pb-6">
 			<slot />
 		</main>
+
+		<!-- ── Mobile bottom tab bar (operator, PWA-first) ─────────────────── -->
+		<nav
+			v-if="!portalMode && bottomNav.length"
+			class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.06)] md:hidden print:hidden"
+		>
+			<RouterLink
+				v-for="item in bottomNav.slice(0, 2)"
+				:key="item.key"
+				:to="item.to"
+				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium"
+				:class="isActive(item.to) ? 'text-brand-700' : 'text-gray-500'"
+			>
+				<component :is="item.icon" class="h-5 w-5" />
+				<span class="truncate">{{ item.label }}</span>
+			</RouterLink>
+			<!-- Raised centre Scan action -->
+			<RouterLink
+				v-if="session.canSee('scan')"
+				to="/scan"
+				class="relative flex min-w-0 flex-1 flex-col items-center pt-1 text-[10.5px] font-medium text-gray-500"
+			>
+				<span class="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-pop">
+					<ScanLine class="h-5 w-5" />
+				</span>
+				<span class="mt-0.5">Scan</span>
+			</RouterLink>
+			<RouterLink
+				v-for="item in bottomNav.slice(2, 4)"
+				:key="item.key"
+				:to="item.to"
+				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium"
+				:class="isActive(item.to) ? 'text-brand-700' : 'text-gray-500'"
+			>
+				<component :is="item.icon" class="h-5 w-5" />
+				<span class="truncate">{{ item.label }}</span>
+			</RouterLink>
+			<button
+				type="button"
+				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium text-gray-500"
+				@click="mobileNavOpen = true"
+			>
+				<Menu class="h-5 w-5" />
+				<span>More</span>
+			</button>
+		</nav>
 	</div>
 </template>

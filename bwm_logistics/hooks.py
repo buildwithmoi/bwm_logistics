@@ -255,3 +255,7 @@ scheduler_events = {
 
 
 website_route_rules = [{'from_route': '/logistics/<path:app_path>', 'to_route': 'logistics'},]
+
+# PWA (P8): serves /logistics/sw.js + /logistics/manifest.webmanifest from the
+# built bundle with the Service-Worker-Allowed header (see bwm_logistics/pwa.py).
+page_renderer = ["bwm_logistics.pwa.PWARenderer"]

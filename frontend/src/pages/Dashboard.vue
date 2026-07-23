@@ -53,6 +53,7 @@ interface Overview {
 	revenue_months: Array<{ label: string; invoiced: number; collected: number }>;
 	shipment_months: Array<{ label: string; imports: number; exports: number }>;
 	recent_events: Array<{ name: string; event_datetime: string; milestone: string; location?: string; container?: string; shipment?: string }>;
+	stock_on_hand?: { products: Array<{ product: string; unit: string; remaining: number }>; product_count: number };
 	profit_mtd?: number;
 	spent_mtd?: number;
 }
@@ -222,6 +223,18 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 							<div class="text-xs text-muted-foreground">{{ fmtDate(p.posting_date) }} · {{ p.mode_of_payment || "—" }}</div>
 						</div>
 						<span class="shrink-0 font-semibold tabular-nums text-emerald-700">+{{ fmtMoney(p.paid_amount) }}</span>
+					</div>
+				</div>
+
+				<!-- Stock on hand (trading) -->
+				<div v-if="data.stock_on_hand?.products?.length" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-[15px] font-semibold tracking-tight">Stock on hand</h2>
+						<RouterLink v-if="session.canSee('stock')" to="/stock" class="text-xs font-medium text-brand-700 hover:underline">Stock →</RouterLink>
+					</div>
+					<div v-for="p in data.stock_on_hand.products" :key="p.product + p.unit" class="flex items-center justify-between gap-2 border-t border-gray-100 py-2.5 text-sm first:border-0">
+						<span class="min-w-0 flex-1 truncate">{{ p.product }}</span>
+						<span class="shrink-0 font-semibold tabular-nums">{{ p.remaining.toLocaleString() }} <span class="text-xs font-normal text-muted-foreground">{{ p.unit.toLowerCase() }}</span></span>
 					</div>
 				</div>
 			</div>

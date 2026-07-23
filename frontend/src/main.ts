@@ -18,3 +18,14 @@ app.use(router);
 // until an in-app navigation forces a re-render. `isReady()` resolves even if
 // the first navigation redirects or fails, so mounting always proceeds.
 router.isReady().finally(() => app.mount("#app"));
+
+// PWA service worker — registered from /logistics/sw.js (bwm_logistics/pwa.py
+// serves the built worker with Service-Worker-Allowed: /logistics, letting the
+// scope cover the whole app even though the file lives under /assets).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+	window.addEventListener("load", () => {
+		navigator.serviceWorker.register("/logistics/sw.js", { scope: "/logistics" }).catch(() => {
+			/* unsupported/blocked — the app works fine without it */
+		});
+	});
+}

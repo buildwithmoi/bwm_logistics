@@ -107,6 +107,18 @@ def get_overview():
 		),
 	}
 
+	# ── stock on hand (trading shipments — quantities, not money) ───────────
+	try:
+		from bwm_logistics.api.stock import stock_overview
+
+		products = stock_overview()["products"]
+		out["stock_on_hand"] = {
+			"products": [p for p in products if p["remaining"] > 0][:5],
+			"product_count": len(products),
+		}
+	except Exception:
+		out["stock_on_hand"] = {"products": [], "product_count": 0}
+
 	# ── profit (Managers/Accounts only — key omitted otherwise) ─────────────
 	if set(frappe.get_roles()) & CAN_SEE_PROFIT:
 		spent_mtd = _sum(

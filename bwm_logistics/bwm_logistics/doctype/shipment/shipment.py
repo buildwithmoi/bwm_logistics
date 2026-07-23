@@ -7,11 +7,14 @@ from frappe.model.document import Document
 from frappe.model.naming import make_autoname
 
 # Shipment milestones that flip status (shipment- or container-level).
+# "Delayed" is deliberately absent: it marks current_milestone (red chip in
+# the UI) without disturbing the logistics status.
 MILESTONE_STATUS = {
 	"Vessel Departed": "In Transit",
 	"In Transit": "In Transit",
 	"Arrived at Port": "Arrived",
 	"Arrived at Destination": "Arrived",
+	"Offloaded": "Arrived",
 	"Ready for Delivery": "Ready for Delivery",
 	"Out for Delivery": "Ready for Delivery",
 	"Delivered": "Delivered",
@@ -33,6 +36,7 @@ class Shipment(Document):
 		self.validate_customer()
 		self.compute_totals()
 		self.sync_direction_from_container()
+		self.check_distribution_products()
 
 	def validate_customer(self):
 		if self.is_trading():
@@ -48,6 +52,25 @@ class Shipment(Document):
 	def sync_direction_from_container(self):
 		if self.container and not self.direction:
 			self.direction = frappe.db.get_value("Container", self.container, "direction")
+
+	def check_distribution_products(self):
+		"""Distribution Entries reference packages by description — block
+		removing/renaming a package that already has recorded distributions."""
+		if self.is_new() or not frappe.db.exists("DocType", "Distribution Entry"):
+			return
+		products = frappe.get_all(
+			"Distribution Entry", filters={"shipment": self.name}, pluck="product", distinct=True
+		)
+		if not products:
+			return
+		have = {(p.description or "").strip().lower() for p in self.packages}
+		missing = sorted({p for p in products if (p or "").strip().lower() not in have})
+		if missing:
+			frappe.throw(
+				_(
+					"Cannot remove or rename packages that already have distributions recorded: {0}. Delete their distribution entries first."
+				).format(", ".join(missing))
+			)
 
 	def compute_totals(self):
 		self.total_packages = sum((p.qty or 0) for p in self.packages)

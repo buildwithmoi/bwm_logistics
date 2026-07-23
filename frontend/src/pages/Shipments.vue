@@ -82,9 +82,11 @@ const canCreate = computed(() => session.can("shipments", "create"));
 interface PkgRow {
 	description: string;
 	qty: number;
+	unit: string;
 	weight_kg: number | null;
 	declared_value: number | null;
 }
+const UNITS = ["PIECES", "CARTONS", "BOXES", "BAGS", "PALLETS", "KG", "UNITS"];
 interface ChargeRow {
 	charge_type: string;
 	amount: number | null;
@@ -98,7 +100,7 @@ const form = reactive({
 	consignee_phone: "",
 	destination: "",
 	delivery_address: "",
-	packages: [{ description: "", qty: 1, weight_kg: null, declared_value: null }] as PkgRow[],
+	packages: [{ description: "", qty: 1, unit: "PIECES", weight_kg: null, declared_value: null }] as PkgRow[],
 	charges: [] as ChargeRow[],
 });
 
@@ -142,7 +144,7 @@ function openDialog() {
 }
 
 function addPackage() {
-	form.packages.push({ description: "", qty: 1, weight_kg: null, declared_value: null });
+	form.packages.push({ description: "", qty: 1, unit: "PIECES", weight_kg: null, declared_value: null });
 }
 function addCharge() {
 	form.charges.push({ charge_type: "", amount: null });
@@ -252,7 +254,15 @@ async function save() {
 				<template v-else>{{ row.customer_name || "—" }}</template>
 			</template>
 			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>
-			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
+			<template #cell-status="{ value, row }">
+				<span class="inline-flex items-center gap-1.5">
+					<StatusBadge :status="String(value)" />
+					<span
+						v-if="row.current_milestone === 'Delayed'"
+						class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10.5px] font-semibold text-red-700 ring-1 ring-red-200"
+					>Delayed</span>
+				</span>
+			</template>
 			<template #cell-container="{ value }">
 				<span :class="!value && 'text-gray-400'">{{ value || "loose cargo" }}</span>
 			</template>
@@ -333,8 +343,9 @@ async function save() {
 				</div>
 				<div class="space-y-2">
 					<div v-for="(p, i) in form.packages" :key="i" class="flex items-center gap-2">
-						<Input v-model="p.description" placeholder="Description (e.g. Barrel — household goods)" class="flex-1" />
+						<Input v-model="p.description" placeholder="Description (e.g. US Hen Leg Quarter)" class="flex-1" />
 						<Input v-model.number="p.qty" type="number" min="1" placeholder="Qty" class="w-20" />
+						<div class="w-28 shrink-0"><Select v-model="p.unit" :options="UNITS" /></div>
 						<Input v-model.number="p.weight_kg" type="number" min="0" placeholder="kg" class="w-24" />
 						<Input v-model.number="p.declared_value" type="number" min="0" placeholder="Value" class="w-28" />
 						<button

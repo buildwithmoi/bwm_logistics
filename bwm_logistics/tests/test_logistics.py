@@ -622,6 +622,98 @@ class TestTradingShipments(IntegrationTestCase):
 		self.assertNotIn(exp.name, imports)
 
 
+class TestStockDistribution(IntegrationTestCase):
+	"""P8 CI-safe checks: distribution ledger validation + balance math.
+	(Invoice conversion needs accounting setup — covered by p8_verify.)"""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def _trading(self, qty=100, unit="PIECES"):
+		return frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"shipment_type": "Own Goods (Trading)",
+				"direction": "Import",
+				"packages": [{"description": "CI Frozen Goods", "qty": qty, "unit": unit}],
+			}
+		).insert(ignore_permissions=True)
+
+	def _entry(self, shipment, qty, recipient="CI Truck", product="CI Frozen Goods"):
+		return frappe.get_doc(
+			{
+				"doctype": "Distribution Entry",
+				"shipment": shipment,
+				"product": product,
+				"qty": qty,
+				"recipient": recipient,
+			}
+		).insert(ignore_permissions=True)
+
+	def test_unit_persists_and_balances(self):
+		from bwm_logistics.api.stock import shipment_balances
+
+		ship = self._trading(qty=100, unit="CARTONS")
+		self.assertEqual(ship.packages[0].unit, "CARTONS")
+
+		entry = self._entry(ship.name, 60)
+		self.assertEqual(entry.unit, "CARTONS")  # auto-filled from the package
+		bal = shipment_balances(ship.name)
+		self.assertEqual(bal["lines"][0]["remaining"], 40)
+
+	def test_over_distribution_blocked(self):
+		ship = self._trading(qty=100)
+		self._entry(ship.name, 100)
+		with self.assertRaises(frappe.ValidationError):
+			self._entry(ship.name, 1, recipient="One Too Many")
+
+	def test_product_must_match_a_package(self):
+		ship = self._trading()
+		with self.assertRaises(frappe.ValidationError):
+			self._entry(ship.name, 1, product="Unknown Product")
+
+	def test_customer_cargo_rejected(self):
+		customer = _make_customer("CI Distribution Customer")
+		cargo = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"customer": customer,
+				"direction": "Import",
+				"packages": [{"description": "Box", "qty": 5}],
+			}
+		).insert(ignore_permissions=True)
+		with self.assertRaises(frappe.ValidationError):
+			self._entry(cargo.name, 1, product="Box")
+
+	def test_integrity_guard_blocks_package_rename(self):
+		ship = self._trading()
+		self._entry(ship.name, 10)
+		ship.reload()
+		ship.packages[0].description = "Renamed"
+		with self.assertRaises(frappe.ValidationError):
+			ship.save(ignore_permissions=True)
+
+	def test_p8_milestones_idempotent(self):
+		from bwm_logistics.install import ensure_p8_milestones
+
+		ensure_p8_milestones()
+		ensure_p8_milestones()
+		tmpl = frappe.get_doc("Milestone Template", "Standard Import")
+		names = [r.milestone for r in tmpl.milestones]
+		self.assertEqual(names.count("Offloaded"), 1)
+		self.assertEqual(names.count("Delayed"), 1)
+		self.assertEqual(names.index("Offloaded"), names.index("Customs Clearance") + 1)
+
+	def test_stock_page_key_registered(self):
+		from bwm_logistics.api import access
+
+		self.assertIn("stock", access.OPERATOR_KEYS)
+		self.assertIn("stock", access.ROLE_PAGES["Logistics Operations"])
+
+
 class TestDemurrageAlerts(IntegrationTestCase):
 	def test_at_risk_and_digest(self):
 		frappe.set_user("Administrator")

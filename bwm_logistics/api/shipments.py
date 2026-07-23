@@ -118,6 +118,7 @@ def save_shipment(payload):
 			doc.append("packages", {
 				"description": row.get("description"),
 				"qty": cint(row.get("qty") or 1),
+				"unit": row.get("unit") or "PIECES",
 				"weight_kg": row.get("weight_kg") or 0,
 				"volume_cbm": row.get("volume_cbm") or 0,
 				"declared_value": row.get("declared_value") or 0,

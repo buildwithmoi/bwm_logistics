@@ -150,6 +150,12 @@ const infoRows = computed(() => [
 						</h1>
 						<StatusBadge :status="String(doc.status)" />
 						<DirectionBadge :direction="String(doc.direction)" />
+						<span
+							v-if="doc.current_milestone === 'Delayed'"
+							class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-700 ring-1 ring-red-200"
+						>
+							Delayed
+						</span>
 					</div>
 					<p class="text-sm text-muted-foreground">
 						{{ name }} · {{ doc.container_type || "type not set" }}

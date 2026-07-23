@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BWM Logistics app icon: the container/crane brand mark (BrandLogo.vue)
+       in gold on the coal ground. Content stays within the centre 80% so the
+       same art works as a maskable icon. -->
+  <rect width="512" height="512" rx="96" fill="#0f0f10"/>
+  <g transform="translate(76 76) scale(9)">
+    <rect x="5" y="12" width="30" height="19" rx="2.5" stroke="#b8860b" stroke-width="2.6"/>
+    <path d="M12.5 12v19M20 12v19M27.5 12v19" stroke="#b8860b" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+    <path d="M5 17h30" stroke="#b8860b" stroke-width="2" opacity="0.55"/>
+    <path d="M20 12V7" stroke="#b8860b" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M14 7h12" stroke="#b8860b" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

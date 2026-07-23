@@ -245,7 +245,13 @@ async function save() {
 			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>
 			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
 			<template #cell-current_milestone="{ value }">
-				<span :class="!value && 'text-gray-400'">{{ value || "No milestones yet" }}</span>
+				<span
+					v-if="value === 'Delayed'"
+					class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-700 ring-1 ring-red-200"
+				>
+					Delayed
+				</span>
+				<span v-else :class="!value && 'text-gray-400'">{{ value || "No milestones yet" }}</span>
 			</template>
 			<template #cell-eta="{ value }">{{ fmtDate(value as string) }}</template>
 		</DataTable>

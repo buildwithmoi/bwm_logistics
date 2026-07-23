@@ -24,10 +24,12 @@ DEFAULT_MILESTONES = {
 		"In Transit",
 		"Arrived at Port",
 		"Customs Clearance",
+		"Offloaded",
 		"Released",
 		"At Warehouse",
 		"Ready for Delivery",
 		"Delivered",
+		"Delayed",
 	],
 	"Export": [
 		"Received at Warehouse",
@@ -37,7 +39,15 @@ DEFAULT_MILESTONES = {
 		"In Transit",
 		"Arrived at Destination",
 		"Delivered",
+		"Delayed",
 	],
+}
+
+# P8 additions for sites seeded before these milestones existed:
+# (milestone, insert-after anchor or None → append at end)
+P8_MILESTONES = {
+	"Import": [("Offloaded", "Customs Clearance"), ("Delayed", None)],
+	"Export": [("Delayed", None)],
 }
 
 
@@ -50,7 +60,9 @@ def after_install():
 	ensure_default_print_format()
 	ensure_invoice_print_permissions()
 	seed_milestone_templates()
+	ensure_p8_milestones()
 	seed_logistics_roles()
+	ensure_stock_page_in_roles()
 	frappe.db.commit()
 
 
@@ -176,9 +188,28 @@ def seed_logistics_roles():
 	make("Manager", all_pages=1)
 	make(
 		"Operations",
-		pages=["dashboard", "containers", "shipments", "scan", "dispatch", "customers", "billing", "reports", "notifications"],
+		pages=["dashboard", "containers", "shipments", "stock", "scan", "dispatch", "customers", "billing", "reports", "notifications"],
 	)
-	make("Accounts", pages=["dashboard", "customers", "billing", "reports", "notifications"])
+	make("Accounts", pages=["dashboard", "customers", "billing", "stock", "reports", "notifications"])
+
+
+def ensure_stock_page_in_roles():
+	"""P8 backfill for existing sites: any admin-managed role that can see
+	shipments gets the new Stock page (seeder above only runs on fresh sites)."""
+	import json
+
+	if not frappe.db.exists("DocType", "Logistics Role"):
+		return
+	for row in frappe.get_all(
+		"Logistics Role", filters={"is_admin": 0, "all_pages": 0}, fields=["name", "pages"]
+	):
+		try:
+			pages = json.loads(row.pages or "[]")
+		except Exception:
+			continue
+		if "shipments" in pages and "stock" not in pages:
+			pages.append("stock")
+			frappe.db.set_value("Logistics Role", row.name, "pages", json.dumps(pages), update_modified=False)
 
 
 def ensure_roles():
@@ -251,3 +282,36 @@ def seed_milestone_templates():
 			doc.append("milestones", {"milestone": m, "notify_customer": 1})
 		doc.flags.ignore_permissions = True
 		doc.insert(ignore_permissions=True)
+
+
+def ensure_p8_milestones():
+	"""Idempotently add the P8 milestones (Offloaded, Delayed) to the seeded
+	Standard templates on existing sites. Never removes or reorders operator
+	rows; renamed/deleted templates are left alone."""
+	if not frappe.db.exists("DocType", "Milestone Template"):
+		return
+	for direction, additions in P8_MILESTONES.items():
+		name = f"Standard {direction}"
+		if not frappe.db.exists("Milestone Template", name):
+			continue
+		doc = frappe.get_doc("Milestone Template", name)
+		have = {row.milestone for row in doc.milestones}
+		changed = False
+		for milestone, anchor in additions:
+			if milestone in have:
+				continue
+			row = doc.append("milestones", {"milestone": milestone, "notify_customer": 1})
+			if anchor and anchor in have:
+				# Reposition the appended row right after its anchor.
+				rows = [r for r in doc.milestones if r is not row]
+				anchor_pos = next(i for i, r in enumerate(rows) if r.milestone == anchor)
+				rows.insert(anchor_pos + 1, row)
+				doc.milestones = []
+				for i, r in enumerate(rows, start=1):
+					r.idx = i
+					doc.milestones.append(r)
+			changed = True
+			have.add(milestone)
+		if changed:
+			doc.flags.ignore_permissions = True
+			doc.save(ignore_permissions=True)
