@@ -56,3 +56,6 @@ jspm_packages/
 
 # Client business data (imported via bwm_logistics/import_jm_excel.py)
 *.xlsx
+
+# Local AI-assistant session settings
+.claude/
