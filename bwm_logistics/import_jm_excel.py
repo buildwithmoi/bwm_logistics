@@ -19,6 +19,9 @@ from frappe.utils import flt, getdate
 
 DEFAULT_FILENAME = "Stock and Distribution 1.xlsx"
 
+# JM Containers operates a single branch.
+BRANCH = "Accra"
+
 # Their sheet statuses → our tracking milestones (which set shipment status).
 STATUS_MILESTONE = {
 	"Arrived": "Arrived at Port",
@@ -48,6 +51,9 @@ def run(path=None):
 	if not os.path.exists(path):
 		print(f"File not found: {path}")
 		return
+
+	if not frappe.db.exists("Branch", BRANCH):
+		frappe.get_doc({"doctype": "Branch", "branch": BRANCH}).insert(ignore_permissions=True)
 
 	wb = openpyxl.load_workbook(path, data_only=True)
 	created = {"containers": 0, "shipments": 0, "events": 0, "distributions": 0}
@@ -87,6 +93,7 @@ def run(path=None):
 				"direction": "Import",
 				"container_no": container_no,
 				"bl_no": bl_no,
+				"branch": BRANCH,
 				"eta": getdate(eta) if eta else None,
 				"ata": getdate(date_received) if (date_received and status == "Arrived") else None,
 				"notes": (comment or "").strip() or None,
@@ -126,6 +133,7 @@ def run(path=None):
 				"shipment_type": "Own Goods (Trading)",
 				"direction": "Import",
 				"container": container.name,
+				"branch": BRANCH,
 				"packages": packages,
 				"notes": "\n".join(notes) or None,
 			}
