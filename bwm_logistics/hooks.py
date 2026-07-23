@@ -167,7 +167,9 @@ scheduler_events = {
 # Testing
 # -------
 
-# before_tests = "bwm_logistics.install.before_tests"
+# Completes the ERPNext setup wizard on bare test sites (CI) so master data
+# (Company, Customer Group/Territory trees, accounts) exists for the suite.
+before_tests = "bwm_logistics.install.before_tests"
 
 # Extend DocType Class
 # ------------------------------

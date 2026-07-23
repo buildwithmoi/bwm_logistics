@@ -193,6 +193,39 @@ def seed_logistics_roles():
 	make("Accounts", pages=["dashboard", "customers", "billing", "stock", "reports", "notifications"])
 
 
+def before_tests():
+	"""Test bootstrap (hooks.py before_tests). On a bare CI site ERPNext's
+	master data (Company, Customer Group/Territory trees, accounts) only comes
+	from the setup wizard — complete it once so the suite runs on fresh sites
+	exactly like on a configured bench. (Same pattern as hrms.)"""
+	from frappe.utils import now_datetime
+
+	frappe.clear_cache()
+	if not frappe.db.a_row_exists("Company"):
+		from frappe.desk.page.setup_wizard.setup_wizard import setup_complete
+
+		year = now_datetime().year
+		setup_complete(
+			{
+				"currency": "GHS",
+				"full_name": "Test User",
+				"company_name": "BWM Test Logistics Ltd",
+				"timezone": "Africa/Accra",
+				"company_abbr": "BWM",
+				"industry": "Logistics",
+				"country": "Ghana",
+				"fy_start_date": f"{year}-01-01",
+				"fy_end_date": f"{year}-12-31",
+				"language": "english",
+				"company_tagline": "Testing",
+				"email": "test@bwm-demo.test",
+				"password": "test",
+				"chart_of_accounts": "Standard",
+			}
+		)
+	frappe.db.commit()
+
+
 def ensure_stock_page_in_roles():
 	"""P8 backfill for existing sites: any admin-managed role that can see
 	shipments gets the new Stock page (seeder above only runs on fresh sites)."""
