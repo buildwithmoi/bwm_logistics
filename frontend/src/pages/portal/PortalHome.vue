@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Package, ReceiptText, Search, ArrowRight } from "lucide-vue-next";
+import { Search } from "lucide-vue-next";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
+import StatCard from "@/components/ui/StatCard.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
 
@@ -73,15 +74,15 @@ async function doTrack() {
 
 <template>
 	<div class="mx-auto max-w-4xl">
-		<header class="mb-6">
-			<h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Hello, {{ firstName }} 👋</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
+		<header class="mb-5">
+			<h1 class="text-base font-semibold tracking-tight sm:text-lg">Hello, {{ firstName }}</h1>
+			<p class="mt-0.5 text-pretty text-[13px] text-muted-foreground sm:text-sm">
 				Track your shipments, download documents, and pay invoices — all in one place.
 			</p>
 		</header>
 
 		<!-- Track box -->
-		<div class="rounded-3xl bg-coal-900 p-7 text-white">
+		<div class="rounded-2xl bg-coal-900 p-4 text-white sm:p-7">
 			<div class="label-caps !text-brand-400">Track a shipment</div>
 			<form class="mt-3 flex flex-col gap-2 sm:flex-row" @submit.prevent="doTrack">
 				<div class="relative flex-1">
@@ -114,37 +115,13 @@ async function doTrack() {
 		</div>
 
 		<!-- KPI cards -->
-		<div class="mt-4 grid gap-4 sm:grid-cols-2">
-			<RouterLink
-				to="/portal/shipments"
-				class="group flex items-center gap-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100 transition-shadow hover:shadow-pop"
-			>
-				<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 transition-transform group-hover:scale-105">
-					<Package class="h-5 w-5" />
-				</span>
-				<span class="min-w-0 flex-1">
-					<span class="block text-2xl font-semibold tabular-nums">{{ data?.active_count ?? "…" }}</span>
-					<span class="block text-[13px] text-muted-foreground">Active shipments</span>
-				</span>
-				<ArrowRight class="h-4 w-4 shrink-0 text-gray-300 transition-colors group-hover:text-brand-600" />
-			</RouterLink>
-			<RouterLink
-				to="/portal/invoices"
-				class="group flex items-center gap-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100 transition-shadow hover:shadow-pop"
-			>
-				<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700 transition-transform group-hover:scale-105">
-					<ReceiptText class="h-5 w-5" />
-				</span>
-				<span class="min-w-0 flex-1">
-					<span class="block text-2xl font-semibold tabular-nums">{{ data?.unpaid_invoices ?? "…" }}</span>
-					<span class="block text-[13px] text-muted-foreground">Invoices awaiting payment</span>
-				</span>
-				<ArrowRight class="h-4 w-4 shrink-0 text-gray-300 transition-colors group-hover:text-brand-600" />
-			</RouterLink>
+		<div class="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
+			<StatCard :value="data?.active_count ?? '…'" label="Active shipments" to="/portal/shipments" />
+			<StatCard :value="data?.unpaid_invoices ?? '…'" label="Invoices awaiting payment" to="/portal/invoices" />
 		</div>
 
 		<!-- Recent shipments -->
-		<div v-if="data?.recent?.length" class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+		<div v-if="data?.recent?.length" class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 			<h2 class="label-caps mb-3">Recent shipments</h2>
 			<ul class="divide-y divide-gray-100">
 				<li v-for="s in data.recent" :key="s.name">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, Search, Package, Trash2 } from "lucide-vue-next";
+import { Plus, Search, Trash2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -15,6 +15,7 @@ import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 
@@ -64,10 +65,10 @@ watch(directionFilter, () => load());
 onMounted(load);
 
 const columns: Column[] = [
-	{ key: "name", label: "Tracking No" },
+	{ key: "name", label: "Tracking No", primary: true, nowrap: true },
 	{ key: "customer_name", label: "Customer" },
 	{ key: "direction", label: "Direction" },
-	{ key: "status", label: "Status" },
+	{ key: "status", label: "Status", trailing: true },
 	{ key: "container", label: "Container" },
 	{ key: "destination", label: "Destination" },
 	{ key: "total_charges", label: "Charges", numeric: true },
@@ -186,45 +187,40 @@ async function save() {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Shipments</h1>
-			<Button v-if="canCreate" @click="openDialog"><Plus class="h-4 w-4" /> New shipment</Button>
-		</header>
+		<PageHeader title="Shipments">
+			<template v-if="canCreate" #actions>
+				<Button @click="openDialog"><Plus class="h-4 w-4" aria-hidden="true" /> New shipment</Button>
+			</template>
+		</PageHeader>
 
 		<!-- Direction — the primary lens (Import vs Export) -->
-		<div class="mb-4 flex gap-1.5">
+		<div class="chip-row mb-3" role="group" aria-label="Direction">
 			<button
 				v-for="d in ['', 'Import', 'Export']"
 				:key="d"
 				type="button"
-				class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-				:class="
-					directionFilter === d
-						? 'bg-coal-900 text-white'
-						: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-				"
+				class="chip !px-4 !py-2 !text-sm !font-semibold"
+				:class="directionFilter === d ? 'chip-seg-on' : 'chip-off'"
+				:aria-pressed="directionFilter === d"
 				@click="directionFilter = d"
 			>
-				{{ d === "Import" ? "⬇ Imports" : d === "Export" ? "⬆ Exports" : "All" }}
+				{{ d === "Import" ? "Imports" : d === "Export" ? "Exports" : "All" }}
 			</button>
 		</div>
 
-		<div class="mb-4 flex flex-wrap items-center gap-2">
-			<div class="relative min-w-56 flex-1 sm:max-w-xs">
-				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-				<Input v-model="search" placeholder="Search tracking no, customer…" class="pl-9" />
+		<div class="mb-4 space-y-3">
+			<div class="relative sm:max-w-xs">
+				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+				<Input v-model="search" type="search" aria-label="Search shipments" placeholder="Search tracking no, customer…" class="pl-9" />
 			</div>
-			<div class="flex flex-wrap gap-1.5">
+			<div class="chip-row" role="group" aria-label="Status">
 				<button
 					v-for="s in STATUSES"
 					:key="s"
 					type="button"
-					class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-					:class="
-						statusFilter === s
-							? 'bg-brand-600 text-white'
-							: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-					"
+					class="chip"
+					:class="statusFilter === s ? 'chip-on' : 'chip-off'"
+					:aria-pressed="statusFilter === s"
 					@click="statusFilter = s"
 				>
 					{{ s || "All" }}
@@ -243,9 +239,7 @@ async function save() {
 			@load-more="load(true)"
 		>
 			<template #cell-name="{ row }">
-				<span class="inline-flex items-center gap-2 font-medium text-brand-700">
-					<Package class="h-4 w-4" /> {{ row.name }}
-				</span>
+				<span class="font-medium text-brand-700">{{ row.name }}</span>
 			</template>
 			<template #cell-customer_name="{ row }">
 				<span v-if="row.shipment_type === 'Own Goods (Trading)'" class="inline-flex items-center rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-brand-700">

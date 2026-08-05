@@ -10,6 +10,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 import Select from "@/components/ui/Select.vue";
 import Input from "@/components/ui/Input.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 // Reports (P7 — advanced): left-rail section list, custom date range +
 // branch/direction filters, receivables aging and per-shipment profitability
@@ -214,77 +215,80 @@ function exportCsv() {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="report-no-print mb-5 flex flex-wrap items-center gap-3">
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Reports</h1>
-			<button
-				type="button"
-				class="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-white px-4 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50"
-				@click="printSection"
-			>
-				<Printer class="h-4 w-4" /> Print / PDF
-			</button>
-			<button
-				type="button"
-				class="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-white px-4 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50"
-				@click="exportCsv"
-			>
-				<Download class="h-4 w-4" /> Export CSV
-			</button>
-		</header>
+		<div class="report-no-print">
+			<PageHeader title="Reports">
+				<template #actions>
+					<button
+						type="button"
+						class="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-white px-3.5 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+						@click="printSection"
+					>
+						<Printer class="h-4 w-4" aria-hidden="true" /> Print
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-white px-3.5 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+						@click="exportCsv"
+					>
+						<Download class="h-4 w-4" aria-hidden="true" /> Export CSV
+					</button>
+				</template>
+			</PageHeader>
+		</div>
 
 		<!-- Filter bar -->
-		<div class="report-no-print mb-5 flex flex-wrap items-end gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-gray-100">
-			<div class="flex gap-1.5">
+		<div class="report-no-print mb-5 space-y-3 rounded-2xl bg-white p-3 ring-1 ring-gray-100 sm:p-4">
+			<div class="chip-row !-mx-3 !px-3 sm:!mx-0 sm:!px-0" role="group" aria-label="Period">
 				<button
 					v-for="m in [6, 12]"
 					:key="m"
 					type="button"
-					class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-					:class="!customRange && monthsBack === m ? 'bg-brand-600 text-white' : 'bg-gray-50 text-gray-600 ring-1 ring-gray-200 hover:bg-gray-100'"
+					class="chip"
+					:class="!customRange && monthsBack === m ? 'chip-on' : 'chip-off'"
+					:aria-pressed="!customRange && monthsBack === m"
 					@click="setMonths(m)"
 				>
 					{{ m }} months
 				</button>
 			</div>
-			<div class="h-8 w-px bg-gray-200"></div>
-			<div class="flex items-end gap-2">
-				<div class="w-36">
-					<label class="label-caps mb-1 block">From</label>
-					<Input v-model="fromDate" type="date" />
+			<div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+				<div class="sm:w-36">
+					<label for="rpt-from" class="label-caps mb-1 block">From</label>
+					<Input id="rpt-from" v-model="fromDate" type="date" />
 				</div>
-				<div class="w-36">
-					<label class="label-caps mb-1 block">To</label>
-					<Input v-model="toDate" type="date" />
+				<div class="sm:w-36">
+					<label for="rpt-to" class="label-caps mb-1 block">To</label>
+					<Input id="rpt-to" v-model="toDate" type="date" />
 				</div>
 				<button
 					type="button"
-					class="h-9 rounded-lg px-3.5 text-[13px] font-medium transition-colors"
+					class="col-span-2 h-9 rounded-lg px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 					:class="customRange ? 'bg-brand-600 text-white' : 'bg-gray-50 text-gray-600 ring-1 ring-gray-200 hover:bg-gray-100'"
 					@click="applyRange"
 				>
-					Apply
+					Apply range
 				</button>
-			</div>
-			<div class="h-8 w-px bg-gray-200"></div>
-			<div class="w-40">
-				<label class="label-caps mb-1 block">Branch</label>
-				<Select v-model="branch" :options="[{ value: '', label: 'All branches' }, ...branches]" @update:model-value="load" />
-			</div>
-			<div class="w-40">
-				<label class="label-caps mb-1 block">Direction</label>
-				<Select v-model="direction" :options="[{ value: '', label: 'All directions' }, 'Import', 'Export']" @update:model-value="load" />
+				<div class="sm:w-40">
+					<label for="rpt-branch" class="label-caps mb-1 block">Branch</label>
+					<Select id="rpt-branch" v-model="branch" :options="[{ value: '', label: 'All branches' }, ...branches]" @update:model-value="load" />
+				</div>
+				<div class="sm:w-40">
+					<label for="rpt-direction" class="label-caps mb-1 block">Direction</label>
+					<Select id="rpt-direction" v-model="direction" :options="[{ value: '', label: 'All directions' }, 'Import', 'Export']" @update:model-value="load" />
+				</div>
 			</div>
 		</div>
 
-		<div class="flex flex-col gap-6 lg:flex-row">
+		<div class="flex flex-col gap-4 lg:flex-row lg:gap-6">
 			<!-- Left rail (SubNav pattern) -->
-			<nav class="report-no-print flex shrink-0 gap-1 overflow-x-auto lg:w-52 lg:flex-col">
+			<nav class="report-no-print chip-row shrink-0 lg:mx-0 lg:w-52 lg:flex-col lg:overflow-visible lg:px-0" aria-label="Report">
 				<button
 					v-for="s in sections"
 					:key="s.key"
 					type="button"
-					class="shrink-0 rounded-lg px-3.5 py-2 text-left text-sm font-medium transition-colors"
+					class="shrink-0 touch-manipulation rounded-lg px-3.5 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 					:class="section === s.key ? 'bg-brand-50 text-brand-800' : 'text-gray-600 hover:bg-gray-50'"
+					:aria-current="section === s.key ? 'page' : undefined"
 					@click="section = s.key"
 				>
 					{{ s.label }}
@@ -307,7 +311,7 @@ function exportCsv() {
 
 					<!-- Revenue -->
 					<div v-if="section === 'revenue'" class="space-y-4">
-						<div class="grid grid-cols-3 gap-4">
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
 							<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100">
 								<div class="label-caps">Invoiced</div>
 								<div class="mt-1 text-xl font-semibold tabular-nums">{{ fmtMoney(data.collection.invoiced) }}</div>
@@ -323,7 +327,7 @@ function exportCsv() {
 								</div>
 							</div>
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Invoiced vs collected by month</h2>
 							<BarChart :groups="revenueGroups" series-a="Invoiced" series-b="Collected" />
 						</div>
@@ -331,7 +335,7 @@ function exportCsv() {
 
 					<!-- Receivables aging -->
 					<div v-else-if="section === 'aging'" class="space-y-4">
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<div class="mb-4 flex items-baseline justify-between">
 								<h2 class="text-[15px] font-semibold tracking-tight">Receivables aging</h2>
 								<span class="text-sm tabular-nums text-muted-foreground">Total outstanding: <b class="text-gray-900">{{ fmtMoney(data.aging.total) }}</b></span>
@@ -346,7 +350,7 @@ function exportCsv() {
 								</div>
 							</div>
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Most overdue invoices</h2>
 							<div v-if="!data.aging.worst.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
 								Nothing outstanding — every invoice is settled. 🎉
@@ -380,7 +384,7 @@ function exportCsv() {
 
 					<!-- Profitability (server-gated) -->
 					<div v-else-if="section === 'profitability' && data.profitability" class="space-y-4">
-						<div class="grid grid-cols-3 gap-4">
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
 							<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100">
 								<div class="label-caps">Revenue (tagged)</div>
 								<div class="mt-1 text-xl font-semibold tabular-nums">{{ fmtMoney(data.profitability.totals.revenue) }}</div>
@@ -396,7 +400,7 @@ function exportCsv() {
 								</div>
 							</div>
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Per-shipment P&amp;L</h2>
 							<div v-if="!data.profitability.rows.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
 								No shipments have tagged invoices or purchases yet. Tag a shipment when
@@ -436,11 +440,11 @@ function exportCsv() {
 
 					<!-- Shipments -->
 					<div v-else-if="section === 'shipments'" class="space-y-4">
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-4 text-[15px] font-semibold tracking-tight">New shipments by month</h2>
 							<BarChart :groups="shipmentGroups" series-a="Imports" series-b="Exports" />
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-4 text-[15px] font-semibold tracking-tight">By status ({{ totalShipments }})</h2>
 							<div class="space-y-2.5">
 								<div v-for="s in data.status_breakdown" :key="s.status" class="flex items-center gap-3">
@@ -455,7 +459,7 @@ function exportCsv() {
 					</div>
 
 					<!-- Customers -->
-					<div v-else-if="section === 'customers'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div v-else-if="section === 'customers'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 						<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Top customers</h2>
 						<div v-if="!data.top_customers.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
 							No shipments yet.
@@ -499,7 +503,7 @@ function exportCsv() {
 								<span class="tabular-nums text-red-700">{{ c.days_left > 0 ? `in ${c.days_left}d` : "running" }}</span>
 							</div>
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Arriving next</h2>
 							<div v-if="!data.containers.arriving.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
 								Nothing scheduled.
@@ -540,7 +544,7 @@ function exportCsv() {
 								<div class="text-[12px] text-muted-foreground">COD awaiting reconciliation</div>
 							</div>
 						</div>
-						<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+						<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 							<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Pickup requests</h2>
 							<div v-for="p in data.deliveries.pickups" :key="p.status" class="flex justify-between border-t border-gray-100 py-2 text-sm first:border-0">
 								<StatusBadge :status="p.status" />
@@ -550,7 +554,7 @@ function exportCsv() {
 					</div>
 
 					<!-- Messaging -->
-					<div v-else class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div v-else class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 						<div class="mb-4 flex items-baseline justify-between">
 							<h2 class="text-[15px] font-semibold tracking-tight">Messaging</h2>
 							<span class="text-sm text-muted-foreground tabular-nums">

@@ -1,20 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import {
-	ReceiptText,
-	Search,
-	Wallet,
-	AlertTriangle,
-	HandCoins,
-	Package,
-	Plus,
-	Trash2,
-	ExternalLink,
-	BadgePercent,
-	ShoppingCart,
-	Truck,
-} from "lucide-vue-next";
+import { Search, Package, Plus, Trash2, ExternalLink, ShoppingCart } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -26,6 +13,8 @@ import Select from "@/components/ui/Select.vue";
 import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import StatCard from "@/components/ui/StatCard.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 
 const route = useRoute();
@@ -133,13 +122,13 @@ watch(search, () => {
 watch(statusFilter, () => loadInvoices());
 
 const invoiceColumns: Column[] = [
-	{ key: "name", label: "Invoice" },
+	{ key: "name", label: "Invoice", primary: true, nowrap: true },
 	{ key: "customer_name", label: "Customer" },
-	{ key: "posting_date", label: "Date" },
-	{ key: "status", label: "Status" },
+	{ key: "posting_date", label: "Date", nowrap: true },
+	{ key: "status", label: "Status", trailing: true },
 	{ key: "grand_total", label: "Total", numeric: true },
 	{ key: "outstanding_amount", label: "Due", numeric: true },
-	{ key: "actions", label: "", class: "w-36" },
+	{ key: "actions", label: "", class: "w-36", trailing: true },
 ];
 
 // Branded server PDF (BWM Invoice print format).
@@ -319,13 +308,13 @@ watch(tab, (t) => {
 });
 
 const purchaseColumns: Column[] = [
-	{ key: "name", label: "Purchase" },
+	{ key: "name", label: "Purchase", primary: true, nowrap: true },
 	{ key: "supplier_name", label: "Supplier" },
-	{ key: "posting_date", label: "Date" },
+	{ key: "posting_date", label: "Date", nowrap: true },
 	{ key: "bwm_shipment", label: "Shipment" },
 	{ key: "grand_total", label: "Total", numeric: true },
 	{ key: "outstanding_amount", label: "Owed", numeric: true },
-	{ key: "pactions", label: "", class: "w-32" },
+	{ key: "pactions", label: "", class: "w-32", trailing: true },
 ];
 
 // ── record purchase ─────────────────────────────────────────────────────────
@@ -522,26 +511,23 @@ onMounted(() => {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<div class="min-w-0 flex-1">
-				<h1 class="text-2xl font-semibold tracking-tight">Billing</h1>
-				<p class="mt-1 text-sm text-muted-foreground">Sales, purchases, and your rate cards.</p>
-			</div>
-			<template v-if="canBill">
-				<Button v-if="tab === 'purchases'" @click="openPurchase()"><ShoppingCart class="h-4 w-4" /> Record purchase</Button>
-				<Button v-else-if="tab === 'sales'" @click="openNewInvoice()"><Plus class="h-4 w-4" /> New invoice</Button>
-				<Button v-else variant="outline" @click="openCard()"><Plus class="h-4 w-4" /> New rate card</Button>
+		<PageHeader title="Billing" subtitle="Sales, purchases, and your rate cards.">
+			<template v-if="canBill" #actions>
+				<Button v-if="tab === 'purchases'" @click="openPurchase()"><ShoppingCart class="h-4 w-4" aria-hidden="true" /> Record purchase</Button>
+				<Button v-else-if="tab === 'sales'" @click="openNewInvoice()"><Plus class="h-4 w-4" aria-hidden="true" /> New invoice</Button>
+				<Button v-else variant="outline" @click="openCard()"><Plus class="h-4 w-4" aria-hidden="true" /> New rate card</Button>
 			</template>
-		</header>
+		</PageHeader>
 
 		<!-- Tabs -->
-		<div class="mb-5 flex gap-1.5">
+		<div class="chip-row mb-5" role="group" aria-label="Billing section">
 			<button
 				v-for="t in TABS"
 				:key="t.key"
 				type="button"
-				class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
-				:class="tab === t.key ? 'bg-coal-900 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'"
+				class="chip !px-4 !py-2 !text-sm"
+				:class="tab === t.key ? 'chip-seg-on' : 'chip-off'"
+				:aria-pressed="tab === t.key"
 				@click="tab = t.key"
 			>
 				{{ t.label }}
@@ -550,40 +536,26 @@ onMounted(() => {
 
 		<!-- ═════════════ SALES ═════════════ -->
 		<template v-if="tab === 'sales'">
-			<div class="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600"><Wallet class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ fmtMoney(overview?.unpaid_total) }}</div>
-					<div class="text-[13px] text-muted-foreground">Outstanding ({{ overview?.unpaid_count ?? "…" }} invoices)</div>
-				</div>
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-600"><AlertTriangle class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ overview?.overdue_count ?? "…" }}</div>
-					<div class="text-[13px] text-muted-foreground">Overdue invoices</div>
-				</div>
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600"><HandCoins class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ fmtMoney(overview?.collected_this_month) }}</div>
-					<div class="text-[13px] text-muted-foreground">Collected this month</div>
-				</div>
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700"><Package class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ overview?.uninvoiced?.length ?? "…" }}</div>
-					<div class="text-[13px] text-muted-foreground">Shipments to invoice</div>
-				</div>
+			<div class="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+				<StatCard :value="fmtMoney(overview?.unpaid_total)" :label="`Outstanding (${overview?.unpaid_count ?? '…'} invoices)`" />
+				<StatCard :value="overview?.overdue_count ?? '…'" label="Overdue invoices" />
+				<StatCard :value="fmtMoney(overview?.collected_this_month)" label="Collected this month" />
+				<StatCard :value="overview?.uninvoiced?.length ?? '…'" label="Shipments to invoice" />
 			</div>
 
-			<div v-if="overview?.uninvoiced?.length && canBill" class="mb-6 rounded-3xl bg-brand-50 p-5 ring-1 ring-brand-200">
+			<div v-if="overview?.uninvoiced?.length && canBill" class="mb-5 rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-200 sm:p-5">
 				<div class="label-caps mb-3 !text-brand-800">Ready to invoice</div>
 				<div class="flex flex-wrap gap-2">
 					<div
 						v-for="s in overview.uninvoiced.slice(0, 6)"
 						:key="s.name"
-						class="flex items-center gap-3 rounded-xl bg-white px-4 py-2.5 shadow-xs"
+						class="flex min-w-0 max-w-full items-center gap-3 rounded-xl bg-white px-3.5 py-2.5 shadow-xs"
 					>
-						<RouterLink :to="`/shipments/${s.name}`" class="text-sm font-medium text-brand-700 hover:underline">{{ s.name }}</RouterLink>
-						<span class="text-xs text-muted-foreground">{{ s.customer_name }} · {{ fmtMoney(s.total_charges) }}</span>
-						<Button size="sm" :loading="invoicing === s.name" @click="makeInvoice(s.name)">Invoice</Button>
+						<div class="min-w-0">
+							<RouterLink :to="`/shipments/${s.name}`" class="block truncate text-sm font-medium text-brand-700 hover:underline">{{ s.name }}</RouterLink>
+							<span class="block truncate text-xs text-muted-foreground">{{ s.customer_name }} · {{ fmtMoney(s.total_charges) }}</span>
+						</div>
+						<Button size="sm" class="shrink-0" :loading="invoicing === s.name" @click="makeInvoice(s.name)">Invoice</Button>
 					</div>
 					<span v-if="overview.uninvoiced.length > 6" class="self-center text-xs text-muted-foreground">
 						+{{ overview.uninvoiced.length - 6 }} more
@@ -591,18 +563,19 @@ onMounted(() => {
 				</div>
 			</div>
 
-			<div class="mb-4 flex flex-wrap items-center gap-2">
-				<div class="relative min-w-56 flex-1 sm:max-w-xs">
-					<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-					<Input v-model="search" placeholder="Search invoice, customer…" class="pl-9" />
+			<div class="mb-4 space-y-3">
+				<div class="relative sm:max-w-xs">
+					<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+					<Input v-model="search" type="search" aria-label="Search invoices" placeholder="Search invoice, customer…" class="pl-9" />
 				</div>
-				<div class="flex gap-1.5">
+				<div class="chip-row" role="group" aria-label="Invoice status">
 					<button
 						v-for="s in ['', 'Unpaid', 'Overdue', 'Paid']"
 						:key="s"
 						type="button"
-						class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-						:class="statusFilter === s ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'"
+						class="chip"
+						:class="statusFilter === s ? 'chip-on' : 'chip-off'"
+						:aria-pressed="statusFilter === s"
 						@click="statusFilter = s"
 					>
 						{{ s || "All" }}
@@ -619,12 +592,12 @@ onMounted(() => {
 				@load-more="loadInvoices(true)"
 			>
 				<template #cell-name="{ row }">
-					<div>
-						<span class="inline-flex items-center gap-2 font-medium"><ReceiptText class="h-4 w-4 text-brand-700" /> {{ row.name }}</span>
+					<div class="min-w-0">
+						<span class="font-medium">{{ row.name }}</span>
 						<RouterLink
 							v-if="row.shipment"
 							:to="`/shipments/${row.shipment}`"
-							class="block text-xs text-brand-700 hover:underline"
+							class="block truncate text-xs text-brand-700 hover:underline"
 							@click.stop
 						>{{ row.shipment }}</RouterLink>
 					</div>
@@ -664,38 +637,27 @@ onMounted(() => {
 
 		<!-- ═════════════ PURCHASES ═════════════ -->
 		<template v-else-if="tab === 'purchases'">
-			<div class="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-3">
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600"><Truck class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ fmtMoney(purchOverview?.owed_total) }}</div>
-					<div class="text-[13px] text-muted-foreground">Owed to suppliers ({{ purchOverview?.owed_count ?? "…" }} bills)</div>
-				</div>
-				<div class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
-					<span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-600"><ShoppingCart class="h-5 w-5" /></span>
-					<div class="text-2xl font-semibold tabular-nums">{{ fmtMoney(purchOverview?.spent_this_month) }}</div>
-					<div class="text-[13px] text-muted-foreground">Purchased this month</div>
-				</div>
-				<div class="hidden rounded-3xl bg-coal-900 p-5 text-white lg:block">
-					<div class="label-caps !text-brand-400">Tip</div>
-					<p class="mt-2 text-sm text-white/70">
-						Tag each purchase to its shipment — duties, taxes, clearing — and the
-						shipment's P&L updates itself.
-					</p>
-				</div>
+			<div class="mb-5 grid grid-cols-2 gap-3 sm:gap-4">
+				<StatCard
+					:value="fmtMoney(purchOverview?.owed_total)"
+					:label="`Owed to suppliers (${purchOverview?.owed_count ?? '…'} bills)`"
+				/>
+				<StatCard :value="fmtMoney(purchOverview?.spent_this_month)" label="Purchased this month" />
 			</div>
 
-			<div class="mb-4 flex flex-wrap items-center gap-2">
-				<div class="relative min-w-56 flex-1 sm:max-w-xs">
-					<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-					<Input v-model="purchSearch" placeholder="Search purchase, supplier, bill no…" class="pl-9" />
+			<div class="mb-4 space-y-3">
+				<div class="relative sm:max-w-xs">
+					<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+					<Input v-model="purchSearch" type="search" aria-label="Search purchases" placeholder="Search purchase, supplier, bill no…" class="pl-9" />
 				</div>
-				<div class="flex gap-1.5">
+				<div class="chip-row" role="group" aria-label="Purchase status">
 					<button
 						v-for="s in ['', 'Unpaid', 'Paid']"
 						:key="s"
 						type="button"
-						class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-						:class="purchStatus === s ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'"
+						class="chip"
+						:class="purchStatus === s ? 'chip-on' : 'chip-off'"
+						:aria-pressed="purchStatus === s"
 						@click="purchStatus = s"
 					>
 						{{ s || "All" }}
@@ -750,27 +712,28 @@ onMounted(() => {
 
 		<!-- ═════════════ RATE CARDS ═════════════ -->
 		<template v-else>
-			<div v-if="!rateCards.length" class="rounded-3xl bg-white p-10 text-center text-sm text-muted-foreground ring-1 ring-gray-100">
+			<div v-if="!rateCards.length" class="rounded-2xl bg-white p-10 text-center text-sm text-muted-foreground ring-1 ring-gray-100">
 				No rate cards yet — define your pricing once, then apply it to any shipment with one click.
 			</div>
 			<div v-else class="grid gap-4 sm:grid-cols-2">
-				<div v-for="c in rateCards" :key="c.name" class="rounded-3xl bg-white p-5 ring-1 ring-gray-100">
+				<div v-for="c in rateCards" :key="c.name" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-5">
 					<div class="mb-3 flex items-start justify-between gap-2">
-						<div>
-							<div class="font-semibold flex items-center gap-2"><BadgePercent class="h-4 w-4 text-brand-700" /> {{ c.card_name }}</div>
+						<div class="min-w-0">
+							<div class="truncate font-semibold">{{ c.card_name }}</div>
 							<div class="text-xs text-muted-foreground">
 								{{ c.direction || "Any direction" }}
 								<span v-if="c.is_default" class="ml-1 rounded-full bg-brand-600/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-700">DEFAULT</span>
 							</div>
 						</div>
-						<div v-if="canBill" class="flex gap-1">
+						<div v-if="canBill" class="flex shrink-0 gap-1">
 							<Button size="sm" variant="ghost" @click="openCard(c)">Edit</Button>
 							<button
 								type="button"
-								class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
+								class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+								:aria-label="`Delete rate card ${c.card_name}`"
 								@click="deleteCard(c)"
 							>
-								<Trash2 class="h-4 w-4" />
+								<Trash2 class="h-4 w-4" aria-hidden="true" />
 							</button>
 						</div>
 					</div>

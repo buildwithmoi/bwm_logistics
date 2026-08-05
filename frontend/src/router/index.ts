@@ -28,7 +28,6 @@ const routes = [
 		component: () => import("@/pages/ShipmentLabel.vue"),
 	},
 	{ path: "/stock", name: "stock", component: () => import("@/pages/Stock.vue") },
-	{ path: "/scan", name: "scan", component: () => import("@/pages/Scan.vue") },
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
 	{
 		path: "/dispatch/:name",

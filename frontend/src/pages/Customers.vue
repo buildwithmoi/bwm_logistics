@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, Search, Users, Mail, CheckCircle2, FileText } from "lucide-vue-next";
+import { Plus, Search } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Dialog from "@/components/ui/Dialog.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 
 const router = useRouter();
@@ -53,12 +54,12 @@ watch(search, () => {
 onMounted(load);
 
 const columns: Column[] = [
-	{ key: "customer_name", label: "Customer" },
-	{ key: "mobile_no", label: "Phone" },
+	{ key: "customer_name", label: "Customer", primary: true },
+	{ key: "mobile_no", label: "Phone", nowrap: true },
 	{ key: "email_id", label: "Email" },
 	{ key: "shipment_count", label: "Shipments", numeric: true },
 	{ key: "portal_user", label: "Portal access" },
-	{ key: "statement", label: "", class: "w-28" },
+	{ key: "statement", label: "", class: "w-28", trailing: true },
 ];
 
 // ── create dialog ───────────────────────────────────────────────────────────
@@ -131,15 +132,16 @@ async function sendInvite() {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Customers</h1>
-			<Button v-if="canWrite" @click="createOpen = true"><Plus class="h-4 w-4" /> New customer</Button>
-		</header>
+		<PageHeader title="Customers">
+			<template v-if="canWrite" #actions>
+				<Button @click="createOpen = true"><Plus class="h-4 w-4" aria-hidden="true" /> New customer</Button>
+			</template>
+		</PageHeader>
 
 		<div class="mb-4">
-			<div class="relative max-w-xs">
-				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-				<Input v-model="search" placeholder="Search name, phone, email…" class="pl-9" />
+			<div class="relative sm:max-w-xs">
+				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+				<Input v-model="search" type="search" aria-label="Search customers" placeholder="Search name, phone, email…" class="pl-9" />
 			</div>
 		</div>
 
@@ -152,33 +154,26 @@ async function sendInvite() {
 			@load-more="load(true)"
 		>
 			<template #cell-customer_name="{ row }">
-				<div class="flex items-center gap-2.5 font-medium">
-					<span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600/10 text-xs font-bold text-brand-700">
-						{{ String(row.customer_name)[0]?.toUpperCase() }}
-					</span>
-					{{ row.customer_name }}
-				</div>
+				<span class="font-medium">{{ row.customer_name }}</span>
 			</template>
 			<template #cell-statement="{ row }">
 				<button
 					type="button"
-					class="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-700 hover:underline"
+					class="text-[13px] font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 					@click.stop="router.push(`/customers/${row.name}/statement`)"
 				>
-					<FileText class="h-3.5 w-3.5" /> Statement
+					Statement
 				</button>
 			</template>
 			<template #cell-portal_user="{ row }">
-				<span v-if="row.portal_user" class="inline-flex items-center gap-1.5 text-[13px] text-emerald-700">
-					<CheckCircle2 class="h-3.5 w-3.5" /> {{ row.portal_user }}
-				</span>
+				<span v-if="row.portal_user" class="truncate text-[13px] text-emerald-700">{{ row.portal_user }}</span>
 				<button
 					v-else-if="canWrite"
 					type="button"
-					class="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-700 hover:underline"
+					class="text-[13px] font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 					@click.stop="openInvite(row as Row)"
 				>
-					<Mail class="h-3.5 w-3.5" /> Invite to portal
+					Invite to portal
 				</button>
 				<span v-else class="text-gray-400">—</span>
 			</template>

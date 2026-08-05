@@ -1,23 +1,42 @@
 # Copyright (c) 2026, Build With Moi and contributors
 # For license information, please see license.txt
 
-"""One-time import of the JM Containers working Excel ("Stock and
-Distribution 1.xlsx") into containers, trading shipments and distribution
-entries. Run with:
+"""The JM Containers working Excel → containers, trading shipments and
+distribution entries.
 
-    bench --site local16.6 execute bwm_logistics.import_jm_excel.run
-    bench --site local16.6 execute bwm_logistics.import_jm_excel.run --kwargs "{'path': '/path/to.xlsx'}"
+Two ways in, both landing on the same records:
 
-Idempotent: containers already imported (same container no + BL) are skipped,
-as are identical distribution rows — safe to re-run after fixing data.
+1. **Direct import** from a spreadsheet on this machine (needs openpyxl and the
+   .xlsx to hand — client data is gitignored, so this is a local-only path):
+
+       bench --site <site> execute bwm_logistics.import_jm_excel.run
+       bench --site <site> execute bwm_logistics.import_jm_excel.run \\
+           --kwargs "{'path': '/path/to.xlsx'}"
+
+2. **Shipped opening balance.** `extract()` freezes a spreadsheet into
+   `data/jm_containers_opening.json`, which is committed. The patch
+   `bwm_logistics.patches.v1_0.import_client_opening_data` loads that file on
+   `bench migrate`, so a fresh client site comes up with its real stock without
+   anyone copying a spreadsheet onto the server:
+
+       bench --site <site> execute bwm_logistics.import_jm_excel.extract \\
+           --kwargs "{'path': '/path/to.xlsx'}"
+       git add bwm_logistics/data/jm_containers_opening.json && git push
+
+Both are idempotent: containers already imported (same container no + BL) are
+skipped, as are identical distribution rows — safe to re-run after fixing data.
 """
 
+import json
 import os
 
 import frappe
 from frappe.utils import flt, getdate
 
 DEFAULT_FILENAME = "Stock and Distribution 1.xlsx"
+
+# The frozen opening balance shipped in the repo (written by extract()).
+OPENING_DATA = os.path.join("data", "jm_containers_opening.json")
 
 # JM Containers operates a single branch.
 BRANCH = "Accra"
@@ -42,48 +61,142 @@ def _default_path() -> str:
 	return os.path.abspath(os.path.join(frappe.get_app_path("bwm_logistics"), "..", DEFAULT_FILENAME))
 
 
-def run(path=None):
-	frappe.set_user("Administrator")
-	frappe.flags.mute_emails = True
+def opening_data_path() -> str:
+	return os.path.join(frappe.get_app_path("bwm_logistics"), OPENING_DATA)
+
+
+def _cell(value):
+	"""Spreadsheet cell → a clean string.
+
+	Excel stores long numeric BLs as floats, so `2694851.0` has to come back as
+	`"2694851"`, not `"2694851.0"`.
+	"""
+	if value is None:
+		return None
+	if isinstance(value, float) and value.is_integer():
+		value = int(value)
+	text = str(value).strip()
+	return text or None
+
+
+def _date(value):
+	return str(getdate(value)) if value else None
+
+
+# ── Parsing ─────────────────────────────────────────────────────────────────
+def parse_workbook(path=None) -> dict:
+	"""Read the workbook into the plain dict that both entry points consume.
+
+	Doing the reading in one place means the committed JSON and a live .xlsx
+	import can never drift apart.
+	"""
 	import openpyxl
 
 	path = path or _default_path()
 	if not os.path.exists(path):
-		print(f"File not found: {path}")
-		return
-
-	if not frappe.db.exists("Branch", BRANCH):
-		frappe.get_doc({"doctype": "Branch", "branch": BRANCH}).insert(ignore_permissions=True)
+		raise FileNotFoundError(path)
 
 	wb = openpyxl.load_workbook(path, data_only=True)
-	created = {"containers": 0, "shipments": 0, "events": 0, "distributions": 0}
-	skipped = []
-	shipments_by_row = []
+	data = {"source": os.path.basename(path), "branch": BRANCH, "containers": [], "distributions": []}
 
-	# ── Stock Tracker → Container + trading Shipment ─────────────────────────
-	ws = wb["Stock Tracker"]
-	rows = list(ws.iter_rows(values_only=True))
+	# ── Stock Tracker → one container + one trading shipment per row ─────────
+	rows = list(wb["Stock Tracker"].iter_rows(values_only=True))
 	header_idx = next(i for i, r in enumerate(rows) if r and r[0] == "Date Received")
-	seen_containers = set()
 	for r in rows[header_idx + 1 :]:
 		(date_received, item, bl_no, container_no, eta, qty, unit, supplier, status, invoice_ref, comment) = (
 			list(r) + [None] * 11
 		)[:11]
 		if not container_no or not item:
 			continue
-		container_no = str(container_no).strip()
-		bl_no = str(bl_no).strip() if bl_no else None
-		key = (container_no, bl_no)
-		if key in seen_containers:
-			skipped.append(f"duplicate row in sheet: {container_no} / {bl_no}")
-		seen_containers.add(key)
+
+		# The Item column may hold several goods in one container ("A & B").
+		# The sheet carries a single Qty per row, so it lands on the first line
+		# and the rest start at 0, to be corrected on arrival.
+		names = [p.strip() for p in str(item).replace("\n", " ").split("&") if p.strip()]
+		packages = [
+			{
+				"description": name,
+				"qty": int(flt(qty)) if (i == 0 and qty) else 0,
+				"unit": (_cell(unit) or "PIECES").upper(),
+			}
+			for i, name in enumerate(names)
+		]
+
+		data["containers"].append(
+			{
+				"container_no": _cell(container_no),
+				"bl_no": _cell(bl_no),
+				"eta": _date(eta),
+				"date_received": _date(date_received),
+				"status": _cell(status),
+				"supplier": _cell(supplier),
+				"invoice_ref": _cell(invoice_ref),
+				"comment": _cell(comment),
+				"packages": packages,
+				"qty_needs_split": len(names) > 1 and bool(qty),
+			}
+		)
+
+	# ── Distribution → Distribution Entries ─────────────────────────────────
+	rows = list(wb["Distribution"].iter_rows(values_only=True))
+	header_idx = next(i for i, r in enumerate(rows) if r and r[0] == "Customer Name")
+	for r in rows[header_idx + 1 :]:
+		(recipient, product, qty, unit_price, _total, destination, delivery_date) = (list(r) + [None] * 7)[:7]
+		if not recipient or not product or not flt(qty):
+			continue
+		data["distributions"].append(
+			{
+				"recipient": _cell(recipient),
+				"product": _cell(product),
+				"qty": flt(qty),
+				"unit_price": flt(unit_price) or None,
+				"destination": _cell(destination),
+				"delivery_date": _date(delivery_date),
+			}
+		)
+
+	return data
+
+
+def extract(path=None, out=None):
+	"""Freeze a spreadsheet into the committed opening-balance JSON."""
+	data = parse_workbook(path)
+	out = out or opening_data_path()
+	os.makedirs(os.path.dirname(out), exist_ok=True)
+	with open(out, "w") as f:
+		json.dump(data, f, indent=2, ensure_ascii=False)
+		f.write("\n")
+	print(
+		f"Wrote {out}: {len(data['containers'])} containers, "
+		f"{len(data['distributions'])} distribution rows (source: {data['source']})"
+	)
+	return data
+
+
+# ── Loading ─────────────────────────────────────────────────────────────────
+def load(data: dict) -> dict:
+	"""Create the records for a parsed workbook. Safe to re-run."""
+	frappe.set_user("Administrator")
+	frappe.flags.mute_emails = True
+
+	branch = data.get("branch") or BRANCH
+	if not frappe.db.exists("Branch", branch):
+		frappe.get_doc({"doctype": "Branch", "branch": branch}).insert(ignore_permissions=True)
+
+	created = {"containers": 0, "shipments": 0, "events": 0, "distributions": 0}
+	skipped = []
+	shipments = []  # trading shipments in sheet order — distributions match against these
+
+	for row in data["containers"]:
+		container_no, bl_no = row["container_no"], row.get("bl_no")
 
 		existing = frappe.db.get_value("Container", {"container_no": container_no, "bl_no": bl_no}, "name")
 		if existing:
-			ship = frappe.db.get_value(
-				"Shipment", {"container": existing, "shipment_type": "Own Goods (Trading)"}, "name"
+			shipments.append(
+				frappe.db.get_value(
+					"Shipment", {"container": existing, "shipment_type": "Own Goods (Trading)"}, "name"
+				)
 			)
-			shipments_by_row.append(ship)
 			skipped.append(f"already imported: {container_no} ({bl_no})")
 			continue
 
@@ -93,39 +206,29 @@ def run(path=None):
 				"direction": "Import",
 				"container_no": container_no,
 				"bl_no": bl_no,
-				"branch": BRANCH,
-				"eta": getdate(eta) if eta else None,
-				"ata": getdate(date_received) if (date_received and status == "Arrived") else None,
-				"notes": (comment or "").strip() or None,
+				"branch": branch,
+				"eta": row.get("eta"),
+				"ata": row.get("date_received") if row.get("status") == "Arrived" else None,
+				"notes": row.get("comment"),
 			}
 		)
 		container.flags.ignore_permissions = True
 		container.insert(ignore_permissions=True)
 		created["containers"] += 1
 
-		# Item column may hold several goods in one container ("A & B").
-		item_names = [part.strip() for part in str(item).replace("\n", " ").split("&") if part.strip()]
-		packages = []
-		for i, item_name in enumerate(item_names):
-			packages.append(
-				{
-					"description": item_name,
-					# Sheet has one Qty per row — assign it to the first line;
-					# further lines start at 0 and get corrected on arrival.
-					"qty": int(flt(qty)) if (i == 0 and qty) else 0,
-					"unit": (str(unit).strip().upper() if unit else "PIECES"),
-				}
+		if row.get("qty_needs_split"):
+			first = row["packages"][0]
+			skipped.append(
+				f"{container_no}: qty {first['qty']} put on '{first['description']}' — split it manually"
 			)
-		if len(item_names) > 1 and qty:
-			skipped.append(f"{container_no}: qty {qty} put on '{item_names[0]}' — split it manually")
 
 		notes = []
-		if supplier:
-			notes.append(f"Supplier: {supplier}")
-		if invoice_ref:
-			notes.append(f"Supplier invoice: {invoice_ref}")
-		if comment:
-			notes.append(str(comment).strip())
+		if row.get("supplier"):
+			notes.append(f"Supplier: {row['supplier']}")
+		if row.get("invoice_ref"):
+			notes.append(f"Supplier invoice: {row['invoice_ref']}")
+		if row.get("comment"):
+			notes.append(row["comment"])
 
 		shipment = frappe.get_doc(
 			{
@@ -133,43 +236,35 @@ def run(path=None):
 				"shipment_type": "Own Goods (Trading)",
 				"direction": "Import",
 				"container": container.name,
-				"branch": BRANCH,
-				"packages": packages,
+				"branch": branch,
+				"packages": row["packages"],
 				"notes": "\n".join(notes) or None,
 			}
 		)
 		shipment.flags.ignore_permissions = True
 		shipment.insert(ignore_permissions=True)
-		shipments_by_row.append(shipment.name)
+		shipments.append(shipment.name)
 		created["shipments"] += 1
 
-		milestone = STATUS_MILESTONE.get((status or "").strip())
+		milestone = STATUS_MILESTONE.get((row.get("status") or "").strip())
 		if milestone:
 			frappe.get_doc(
 				{
 					"doctype": "Tracking Event",
 					"container": container.name,
 					"milestone": milestone,
-					"event_datetime": date_received or eta or frappe.utils.now_datetime(),
+					"event_datetime": row.get("date_received") or row.get("eta") or frappe.utils.now_datetime(),
 					"source": "Manual",
 					"notify": 0,
 				}
 			).insert(ignore_permissions=True)
 			created["events"] += 1
 
-	# ── Distribution → Distribution Entries ──────────────────────────────────
-	ws = wb["Distribution"]
-	rows = list(ws.iter_rows(values_only=True))
-	header_idx = next(i for i, r in enumerate(rows) if r and r[0] == "Customer Name")
-	for r in rows[header_idx + 1 :]:
-		(recipient, product, qty, unit_price, _total, destination, delivery_date) = (list(r) + [None] * 7)[:7]
-		if not recipient or not product or not flt(qty):
-			continue
-
-		# Find the arrived trading shipment whose package matches this product
-		# (their sheet shortens names — "Hen Leg Quarter" vs "US Hen Leg Quarter").
+	for row in data["distributions"]:
+		# Find the trading shipment whose package matches this product — their
+		# sheet shortens names ("Hen Leg Quarter" vs "US Hen Leg Quarter").
 		target, package_desc = None, None
-		for ship_name in shipments_by_row:
+		for ship_name in shipments:
 			if not ship_name:
 				continue
 			for p in frappe.get_all(
@@ -177,26 +272,26 @@ def run(path=None):
 				filters={"parenttype": "Shipment", "parent": ship_name},
 				fields=["description", "qty"],
 			):
-				if _norm(product) in _norm(p.description) and flt(p.qty) > 0:
+				if _norm(row["product"]) in _norm(p.description) and flt(p.qty) > 0:
 					target, package_desc = ship_name, p.description
 					break
 			if target:
 				break
 		if not target:
-			skipped.append(f"distribution '{product}' → no matching arrived shipment; enter manually")
+			skipped.append(f"distribution '{row['product']}' → no matching arrived shipment; enter manually")
 			continue
 
 		dup = frappe.db.exists(
 			"Distribution Entry",
 			{
 				"shipment": target,
-				"recipient": str(recipient).strip(),
-				"qty": flt(qty),
-				"delivery_date": getdate(delivery_date) if delivery_date else None,
+				"recipient": row["recipient"],
+				"qty": flt(row["qty"]),
+				"delivery_date": row.get("delivery_date"),
 			},
 		)
 		if dup:
-			skipped.append(f"distribution already imported: {recipient} / {product} / {qty}")
+			skipped.append(f"distribution already imported: {row['recipient']} / {row['product']} / {row['qty']}")
 			continue
 
 		frappe.get_doc(
@@ -204,11 +299,11 @@ def run(path=None):
 				"doctype": "Distribution Entry",
 				"shipment": target,
 				"product": package_desc,
-				"qty": flt(qty),
-				"recipient": str(recipient).strip(),
-				"destination": (str(destination).strip() if destination else None),
-				"unit_price": flt(unit_price) or None,
-				"delivery_date": getdate(delivery_date) if delivery_date else None,
+				"qty": flt(row["qty"]),
+				"recipient": row["recipient"],
+				"destination": row.get("destination"),
+				"unit_price": row.get("unit_price"),
+				"delivery_date": row.get("delivery_date"),
 			}
 		).insert(ignore_permissions=True)
 		created["distributions"] += 1
@@ -221,3 +316,23 @@ def run(path=None):
 	for s in skipped:
 		print(f"  note: {s}")
 	return created
+
+
+def load_opening():
+	"""Load the opening balance committed in the repo (used by the patch)."""
+	path = opening_data_path()
+	if not os.path.exists(path):
+		print(f"No opening data at {path} — nothing to import")
+		return {}
+	with open(path) as f:
+		return load(json.load(f))
+
+
+def run(path=None):
+	"""Import straight from a spreadsheet on this machine."""
+	try:
+		data = parse_workbook(path)
+	except FileNotFoundError as e:
+		print(f"File not found: {e}")
+		return
+	return load(data)

@@ -375,7 +375,7 @@ async function makeInvoice() {
 			</header>
 
 			<!-- P&L (Managers/Accounts — server-gated) -->
-			<div v-if="canBill && pnl" class="mb-4 rounded-3xl bg-coal-900 p-6 text-white">
+			<div v-if="canBill && pnl" class="mb-4 rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
 				<div class="flex flex-wrap items-center gap-x-8 gap-y-3">
 					<div class="min-w-0">
 						<div class="label-caps !text-brand-400">Profit & loss</div>
@@ -435,7 +435,7 @@ async function makeInvoice() {
 			<div class="grid gap-4 lg:grid-cols-12">
 				<div class="space-y-4 lg:col-span-5">
 					<!-- Container card -->
-					<div v-if="data.container_info" class="rounded-3xl bg-coal-900 p-6 text-white">
+					<div v-if="data.container_info" class="rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
 						<div class="label-caps !text-brand-400">In container</div>
 						<RouterLink
 							:to="`/containers/${data.container_info.name}`"
@@ -450,7 +450,7 @@ async function makeInvoice() {
 					</div>
 
 					<!-- Parties -->
-					<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 						<h2 class="label-caps mb-4">Consignee & route</h2>
 						<dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
 							<div><dt class="label-caps !text-[10px]">Receiver</dt><dd class="mt-0.5">{{ data.consignee_name || "—" }}</dd></div>
@@ -462,7 +462,7 @@ async function makeInvoice() {
 					</div>
 
 					<!-- Packages -->
-					<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 						<h2 class="label-caps mb-4">Packages ({{ data.total_packages || 0 }})</h2>
 						<ul class="divide-y divide-gray-100 text-sm">
 							<li v-for="(p, i) in data.packages" :key="i" class="flex items-baseline justify-between gap-3 py-2">
@@ -477,7 +477,7 @@ async function makeInvoice() {
 					</div>
 
 					<!-- Billing -->
-					<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 						<div class="mb-4 flex items-center justify-between">
 							<h2 class="label-caps">Charges & billing</h2>
 							<button
@@ -513,14 +513,14 @@ async function makeInvoice() {
 				</div>
 
 				<!-- Timeline -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 lg:col-span-7">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-7">
 					<h2 class="label-caps mb-4">Tracking timeline</h2>
 					<Timeline :events="data.timeline" />
 				</div>
 			</div>
 
 			<!-- ── Stock & distribution (trading shipments) ─────────────────── -->
-			<div v-if="isTrading && balances" class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+			<div v-if="isTrading && balances" class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 				<div class="mb-4 flex flex-wrap items-center gap-2">
 					<h2 class="label-caps min-w-0 flex-1">Stock & distribution</h2>
 					<span class="text-sm tabular-nums text-muted-foreground">

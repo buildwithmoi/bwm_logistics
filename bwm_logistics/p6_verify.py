@@ -37,7 +37,7 @@ def run():
 
 	# ── custom role + staff member ───────────────────────────────────────────
 	staff.save_role(
-		{"role_name": "Front Desk", "pages": ["dashboard", "shipments", "customers", "scan"]}
+		{"role_name": "Front Desk", "pages": ["dashboard", "shipments", "customers", "containers"]}
 	)
 	user_email = "frontdesk@bwm-demo.test"
 	staff.create_staff("Efua FrontDesk", user_email, logistics_role="Front Desk")
@@ -45,7 +45,7 @@ def run():
 	perms = access.user_perms(user_email)
 	check(
 		"role pages resolve exactly",
-		set(perms) == {"dashboard", "shipments", "customers", "scan"},
+		set(perms) == {"dashboard", "shipments", "customers", "containers"},
 		str(sorted(perms)),
 	)
 	froles = set(frappe.get_roles(user_email))
@@ -57,7 +57,7 @@ def run():
 
 	# ── role edit ripples to members ─────────────────────────────────────────
 	staff.save_role(
-		{"role_name": "Front Desk", "pages": ["dashboard", "shipments", "customers", "scan", "billing"]}
+		{"role_name": "Front Desk", "pages": ["dashboard", "shipments", "customers", "containers", "billing"]}
 	)
 	perms2 = access.user_perms(user_email)
 	froles2 = set(frappe.get_roles(user_email))

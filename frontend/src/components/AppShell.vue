@@ -11,32 +11,28 @@ import {
 	ReceiptText,
 	BellRing,
 	Settings,
-	LayoutGrid,
-	ChevronDown,
 	LogOut,
-	ExternalLink,
 	Menu,
 	X,
 	MapPin,
 	UserRound,
-	ScanLine,
 	BarChart3,
 	Boxes,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import BrandLogo from "@/components/BrandLogo.vue";
-import AppsDrawer from "@/components/AppsDrawer.vue";
 import PortalBell from "@/components/PortalBell.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import { useBranchStore } from "@/stores/branch";
 import { call } from "@/lib/frappe";
 import { logout as apiLogout } from "@/lib/auth";
 
-// Shell copied from the ex_beauty layout language: a near-black top bar with
-// a lean set of primary tabs, an "Apps" launcher for everything else, and a
-// two-line account block. Full-width content sits below; pages manage their
-// own scroll. One shell serves both route trees — the tab set switches when
-// the user is in the customer portal.
+// One shell, two route trees. The layout is deliberately spare:
+//   left    — the menu button (every breakpoint); it opens the full nav
+//   centre  — the handful of everyday tabs (desktop only)
+//   right   — the business logo
+// Everything else — the long tail of pages plus Log out — lives in the drawer,
+// so there is exactly one place to look for "where else can I go?".
 
 interface NavItem {
 	key: string;
@@ -45,18 +41,18 @@ interface NavItem {
 	to: string;
 }
 
-// Operator primary tabs — the everyday few. Everything else lives in Apps.
+// Operator tabs shown in the bar. Kept short on purpose — Stock, Reports,
+// Notifications and Settings are drawer-only.
 const operatorPrimary: NavItem[] = [
 	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard, to: "/" },
 	{ key: "containers", label: "Containers", icon: Container, to: "/containers" },
 	{ key: "shipments", label: "Shipments", icon: Package, to: "/shipments" },
-	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
 	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
 	{ key: "customers", label: "Customers", icon: Users, to: "/customers" },
 	{ key: "billing", label: "Billing", icon: ReceiptText, to: "/billing" },
 ];
 
-// Customer portal tabs — the whole portal nav (no Apps drawer for customers).
+// Customer portal tabs — the whole portal nav.
 const portalPrimary: NavItem[] = [
 	{ key: "portal", label: "My Portal", icon: LayoutDashboard, to: "/portal" },
 	{ key: "portal-shipments", label: "Shipments", icon: Package, to: "/portal/shipments" },
@@ -77,14 +73,8 @@ const primary = computed(() =>
 	(portalMode.value ? portalPrimary : operatorPrimary).filter((i) => session.canSee(i.key)),
 );
 
-const initials = computed(() => {
-	const name = session.user?.full_name || session.user?.first_name || "U";
-	const parts = name.trim().split(/\s+/);
-	return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "U";
-});
-const fullName = computed(
-	() => session.user?.full_name || session.user?.first_name || "Account",
-);
+const fullName = computed(() => session.user?.full_name || session.user?.first_name || "Account");
+const userEmail = computed(() => session.user?.email || "");
 
 const isActive = (to: string) => {
 	if (to === "/") return route.path === "/";
@@ -92,21 +82,6 @@ const isActive = (to: string) => {
 	return route.path.startsWith(to);
 };
 
-// Apps drawer — close on outside click. Staff only.
-const appsOpen = ref(false);
-const appsRef = ref<HTMLElement | null>(null);
-onClickOutside(appsRef, () => (appsOpen.value = false));
-
-// Account menu — avatar + dropdown (switch to desk, logout).
-const accountOpen = ref(false);
-const accountRef = ref<HTMLElement | null>(null);
-onClickOutside(accountRef, () => (accountOpen.value = false));
-const userImage = computed(() => session.user?.user_image || null);
-const userEmail = computed(() => session.user?.email || "");
-const canDesk = computed(() => session.hasRole("System Manager", "Administrator"));
-function switchToDesk() {
-	window.location.href = "/app";
-}
 async function logout() {
 	// POST + CSRF via the auth helper (the endpoint is POST-only); then leave
 	// the app for the public site.
@@ -117,34 +92,34 @@ async function logout() {
 	}
 }
 
-// Mobile sidebar — the full nav, shown via a hamburger on small screens.
-const operatorMobile: NavItem[] = [
+// ── Nav drawer ──────────────────────────────────────────────────────────────
+// The single source of "everywhere you can go", at every breakpoint. The bar
+// tabs are a shortcut to its first few entries, not a separate menu.
+const operatorAll: NavItem[] = [
 	...operatorPrimary,
-	{ key: "scan", label: "Scan", icon: ScanLine, to: "/scan" },
+	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
 	{ key: "reports", label: "Reports", icon: BarChart3, to: "/reports" },
 	{ key: "notifications", label: "Notifications", icon: BellRing, to: "/notifications" },
 	{ key: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ];
-const mobileNavOpen = ref(false);
-const mobileNavVisible = computed(() =>
-	(portalMode.value ? portalPrimary : operatorMobile).filter((i) => session.canSee(i.key)),
+const navOpen = ref(false);
+const drawerRef = ref<HTMLElement | null>(null);
+onClickOutside(drawerRef, () => (navOpen.value = false));
+const drawerNav = computed(() =>
+	(portalMode.value ? portalPrimary : operatorAll).filter((i) => session.canSee(i.key)),
 );
+// Close the drawer whenever the route changes, and lock the page behind it.
+watch(() => route.path, () => (navOpen.value = false));
+watch(navOpen, (open) => {
+	document.documentElement.style.overflow = open ? "hidden" : "";
+});
+function onEscape(e: KeyboardEvent) {
+	if (e.key === "Escape") navOpen.value = false;
+}
 
-// Bottom tab bar (mobile / PWA): up to 4 tabs around a raised Scan action —
-// first-allowed wins, so drivers naturally get just Dispatch (+More).
-const bottomNavCandidates: NavItem[] = [
-	{ key: "dashboard", label: "Home", icon: LayoutDashboard, to: "/" },
-	{ key: "shipments", label: "Shipments", icon: Package, to: "/shipments" },
-	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
-	{ key: "containers", label: "Containers", icon: Container, to: "/containers" },
-	{ key: "dispatch", label: "Dispatch", icon: MapPin, to: "/dispatch" },
-	{ key: "billing", label: "Billing", icon: ReceiptText, to: "/billing" },
-];
-const bottomNav = computed(() =>
-	bottomNavCandidates.filter((i) => session.canSee(i.key)).slice(0, 4),
-);
-// Close the drawer whenever the route changes.
-watch(() => route.path, () => (mobileNavOpen.value = false));
+// Bottom tab bar (mobile / PWA): the same everyday tabs, capped at four. No
+// overflow "More" — the menu button in the top bar already covers the rest.
+const bottomNav = computed(() => primary.value.slice(0, 4));
 
 // Business name + logo come from Logistics Settings (tenant branding).
 const businessName = ref("BWM Logistics");
@@ -168,161 +143,63 @@ onMounted(async () => {
 </script>
 
 <template>
-	<div class="flex h-screen flex-col overflow-hidden bg-gray-50 text-gray-900">
-		<!-- ── Top bar (near-black, full-width) ────────────────────────────── -->
-		<header
-			class="relative z-40 flex h-14 shrink-0 items-center gap-1 bg-coal-900 px-3 text-white sm:px-4"
-		>
-			<!-- Mobile hamburger -->
+	<div class="flex h-dvh flex-col overflow-hidden bg-gray-50 text-gray-900" @keydown="onEscape">
+		<!-- ── Top bar ─────────────────────────────────────────────────────── -->
+		<header class="relative z-40 flex h-14 shrink-0 items-center gap-1 bg-coal-900 px-2 text-white sm:px-3">
+			<!-- Menu — the one way into the full nav, at every width -->
 			<button
 				type="button"
-				class="-ml-1 mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/[0.08] hover:text-white md:hidden"
-				title="Menu"
-				@click="mobileNavOpen = true"
+				class="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+				aria-label="Open menu"
+				:aria-expanded="navOpen"
+				@click="navOpen = true"
 			>
-				<Menu class="h-5 w-5" />
+				<Menu class="h-5 w-5" aria-hidden="true" />
 			</button>
 
-			<!-- Brand -->
-			<RouterLink :to="portalMode ? '/portal' : '/'" class="flex shrink-0 items-center gap-2.5 pr-3">
-				<div
-					class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg shadow-sm shadow-black/20"
-					:class="logo ? 'bg-white' : 'bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900'"
-				>
-					<img v-if="logo" :src="logo" alt="" class="h-full w-full object-contain" />
-					<BrandLogo v-else :size="22" />
-				</div>
-				<span class="hidden text-sm font-semibold tracking-tight xl:inline">
-					{{ businessName }}
-				</span>
-			</RouterLink>
-
-			<!-- Primary tabs (hidden on mobile — see the sidebar drawer) -->
-			<nav class="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto md:flex">
+			<!-- Primary tabs (desktop) -->
+			<nav class="ml-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto md:flex" aria-label="Primary">
 				<RouterLink
 					v-for="item in primary"
 					:key="item.key"
 					:to="item.to"
-					class="flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+					class="shrink-0 touch-manipulation rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
 					:class="
 						isActive(item.to)
-							? 'bg-brand-500/20 text-brand-300'
-							: 'text-white/70 hover:bg-white/[0.07] hover:text-white'
+							? 'bg-white/[0.14] text-white'
+							: 'text-white/65 hover:bg-white/[0.07] hover:text-white'
 					"
+					:aria-current="isActive(item.to) ? 'page' : undefined"
 				>
-					<component :is="item.icon" class="h-4 w-4 shrink-0" />
-					<span class="hidden md:inline">{{ item.label }}</span>
+					{{ item.label }}
 				</RouterLink>
 			</nav>
 
-			<!-- Right cluster (kept hard-right even when the nav is hidden on mobile) -->
-			<div class="ml-auto flex shrink-0 items-center gap-1">
-				<!-- Branch filter (staff only) -->
+			<!-- Right cluster — branch filter, portal bell, then the logo -->
+			<div class="ml-auto flex shrink-0 items-center gap-1.5">
 				<BranchPicker v-if="!portalMode" />
-
-				<!-- Apps launcher (staff, desktop only — mobile uses the sidebar) -->
-				<div v-if="!portalMode" ref="appsRef" class="relative hidden md:block">
-					<button
-						type="button"
-						class="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors"
-						:class="appsOpen ? 'bg-white/[0.14] text-white' : 'text-white/75 hover:bg-white/[0.08] hover:text-white'"
-						@click="appsOpen = !appsOpen"
-					>
-						<LayoutGrid class="h-4 w-4" />
-						<span class="hidden lg:inline">Apps</span>
-					</button>
-					<AppsDrawer :open="appsOpen" @close="appsOpen = false" />
-				</div>
-
-				<!-- Notification bell (customer portal) -->
 				<PortalBell v-if="portalMode" />
 
-				<!-- Divider before account block -->
-				<div class="mx-1 hidden h-6 w-px bg-white/10 lg:block" />
-
-				<!-- Account block -->
-				<div ref="accountRef" class="relative ml-0.5">
-					<button
-						class="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-white/[0.08]"
-						:class="accountOpen ? 'bg-white/[0.1]' : ''"
-						@click="accountOpen = !accountOpen"
+				<RouterLink
+					:to="portalMode ? '/portal' : '/'"
+					class="flex shrink-0 touch-manipulation items-center gap-2.5 rounded-lg pl-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+					:aria-label="`${businessName} — home`"
+				>
+					<span class="hidden text-sm font-semibold tracking-tight text-white/90 lg:inline">
+						{{ businessName }}
+					</span>
+					<span
+						class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg shadow-sm shadow-black/20"
+						:class="logo ? 'bg-white' : 'bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900'"
 					>
-						<img
-							v-if="userImage"
-							:src="userImage"
-							:alt="fullName"
-							class="h-8 w-8 rounded-full object-cover ring-1 ring-white/20"
-						/>
-						<div
-							v-else
-							class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold text-coal-900"
-						>
-							{{ initials }}
-						</div>
-						<div class="hidden text-left leading-tight lg:block">
-							<div class="max-w-[9rem] truncate text-xs font-semibold">{{ fullName }}</div>
-							<div class="max-w-[9rem] truncate text-[10px] text-white/55">{{ businessName }}</div>
-						</div>
-						<ChevronDown
-							class="hidden h-3.5 w-3.5 text-white/50 transition-transform lg:block"
-							:class="accountOpen ? 'rotate-180' : ''"
-						/>
-					</button>
-
-					<transition
-						enter-active-class="transition duration-100 ease-out"
-						enter-from-class="opacity-0 -translate-y-1"
-						enter-to-class="opacity-100 translate-y-0"
-						leave-active-class="transition duration-75 ease-in"
-						leave-from-class="opacity-100"
-						leave-to-class="opacity-0"
-					>
-						<div
-							v-if="accountOpen"
-							class="absolute right-0 top-full z-50 mt-1.5 w-60 overflow-hidden rounded-xl border border-black/5 bg-white text-gray-900 shadow-pop"
-						>
-							<div class="flex items-center gap-3 border-b border-gray-100 px-3.5 py-3">
-								<img
-									v-if="userImage"
-									:src="userImage"
-									:alt="fullName"
-									class="h-9 w-9 rounded-full object-cover"
-								/>
-								<div
-									v-else
-									class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold text-coal-900"
-								>
-									{{ initials }}
-								</div>
-								<div class="min-w-0">
-									<div class="truncate text-sm font-semibold">{{ fullName }}</div>
-									<div class="truncate text-xs text-gray-500">{{ userEmail }}</div>
-								</div>
-							</div>
-							<div class="p-1.5">
-								<button
-									v-if="canDesk"
-									type="button"
-									class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
-									@click="switchToDesk"
-								>
-									<ExternalLink class="h-4 w-4 text-gray-400" /> Switch to Desk
-								</button>
-								<button
-									type="button"
-									class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
-									@click="logout"
-								>
-									<LogOut class="h-4 w-4" /> Log out
-								</button>
-							</div>
-						</div>
-					</transition>
-				</div>
+						<img v-if="logo" :src="logo" alt="" width="36" height="36" class="h-full w-full object-contain" />
+						<BrandLogo v-else :size="22" />
+					</span>
+				</RouterLink>
 			</div>
 		</header>
 
-		<!-- ── Mobile sidebar drawer ───────────────────────────────────────── -->
+		<!-- ── Nav drawer ──────────────────────────────────────────────────── -->
 		<Transition
 			enter-active-class="transition-opacity duration-200"
 			enter-from-class="opacity-0"
@@ -331,46 +208,61 @@ onMounted(async () => {
 			leave-from-class="opacity-100"
 			leave-to-class="opacity-0"
 		>
-			<div v-if="mobileNavOpen" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm md:hidden" @click="mobileNavOpen = false" />
+			<div v-if="navOpen" class="fixed inset-0 z-50 bg-black/40" @click="navOpen = false" />
 		</Transition>
 		<Transition
-			enter-active-class="transition-transform duration-250 ease-out"
+			enter-active-class="transition-transform duration-200 ease-out"
 			enter-from-class="-translate-x-full"
 			enter-to-class="translate-x-0"
-			leave-active-class="transition-transform duration-200 ease-in"
+			leave-active-class="transition-transform duration-150 ease-in"
 			leave-from-class="translate-x-0"
 			leave-to-class="-translate-x-full"
 		>
-			<aside v-if="mobileNavOpen" class="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[82vw] flex-col bg-coal-900 text-white md:hidden">
-				<div class="flex h-14 shrink-0 items-center justify-between px-4">
-					<div class="flex items-center gap-2.5">
-						<div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900 shadow-sm shadow-black/20">
-							<BrandLogo :size="22" />
-						</div>
-						<span class="truncate text-sm font-semibold tracking-tight">{{ businessName }}</span>
-					</div>
-					<button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:bg-white/[0.08] hover:text-white" @click="mobileNavOpen = false">
-						<X class="h-4 w-4" />
+			<aside
+				v-if="navOpen"
+				ref="drawerRef"
+				class="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[82vw] flex-col overscroll-contain bg-coal-900 text-white"
+				aria-label="All pages"
+			>
+				<div class="flex h-14 shrink-0 items-center justify-between gap-2 px-3">
+					<span class="truncate pl-1 text-sm font-semibold tracking-tight">{{ businessName }}</span>
+					<button
+						type="button"
+						class="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+						aria-label="Close menu"
+						@click="navOpen = false"
+					>
+						<X class="h-4 w-4" aria-hidden="true" />
 					</button>
 				</div>
-				<nav class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3">
+				<nav class="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-2.5">
 					<RouterLink
-						v-for="item in mobileNavVisible"
+						v-for="item in drawerNav"
 						:key="item.key"
 						:to="item.to"
-						class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-						:class="isActive(item.to) ? 'bg-brand-500/20 text-brand-300' : 'text-white/70 hover:bg-white/[0.07] hover:text-white'"
+						class="flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+						:class="
+							isActive(item.to)
+								? 'bg-white/[0.14] text-white'
+								: 'text-white/70 hover:bg-white/[0.07] hover:text-white'
+						"
+						:aria-current="isActive(item.to) ? 'page' : undefined"
 					>
-						<component :is="item.icon" class="h-[18px] w-[18px] shrink-0" />
+						<component :is="item.icon" class="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
 						{{ item.label }}
 					</RouterLink>
 				</nav>
-				<div class="shrink-0 border-t border-white/10 p-3">
-					<button v-if="canDesk" type="button" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.07] hover:text-white" @click="switchToDesk">
-						<ExternalLink class="h-[18px] w-[18px]" /> Switch to Desk
-					</button>
-					<button type="button" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-white/[0.07]" @click="logout">
-						<LogOut class="h-[18px] w-[18px]" /> Log out
+				<div class="shrink-0 border-t border-white/10 p-2.5">
+					<div class="px-3 pb-2 pt-1">
+						<div class="truncate text-sm font-medium">{{ fullName }}</div>
+						<div class="truncate text-xs text-white/50">{{ userEmail }}</div>
+					</div>
+					<button
+						type="button"
+						class="flex w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+						@click="logout"
+					>
+						<LogOut class="h-[18px] w-[18px]" aria-hidden="true" /> Log out
 					</button>
 				</div>
 			</aside>
@@ -381,50 +273,23 @@ onMounted(async () => {
 			<slot />
 		</main>
 
-		<!-- ── Mobile bottom tab bar (operator, PWA-first) ─────────────────── -->
+		<!-- ── Mobile bottom tab bar ───────────────────────────────────────── -->
 		<nav
-			v-if="!portalMode && bottomNav.length"
-			class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.06)] md:hidden print:hidden"
+			v-if="bottomNav.length > 1"
+			class="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden print:hidden"
+			aria-label="Sections"
 		>
 			<RouterLink
-				v-for="item in bottomNav.slice(0, 2)"
+				v-for="item in bottomNav"
 				:key="item.key"
 				:to="item.to"
-				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium"
+				class="flex min-w-0 flex-1 touch-manipulation flex-col items-center gap-1 py-2.5 text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
 				:class="isActive(item.to) ? 'text-brand-700' : 'text-gray-500'"
+				:aria-current="isActive(item.to) ? 'page' : undefined"
 			>
-				<component :is="item.icon" class="h-5 w-5" />
-				<span class="truncate">{{ item.label }}</span>
+				<component :is="item.icon" class="h-5 w-5" aria-hidden="true" />
+				<span class="max-w-full truncate">{{ item.label }}</span>
 			</RouterLink>
-			<!-- Raised centre Scan action -->
-			<RouterLink
-				v-if="session.canSee('scan')"
-				to="/scan"
-				class="relative flex min-w-0 flex-1 flex-col items-center pt-1 text-[10.5px] font-medium text-gray-500"
-			>
-				<span class="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-pop">
-					<ScanLine class="h-5 w-5" />
-				</span>
-				<span class="mt-0.5">Scan</span>
-			</RouterLink>
-			<RouterLink
-				v-for="item in bottomNav.slice(2, 4)"
-				:key="item.key"
-				:to="item.to"
-				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium"
-				:class="isActive(item.to) ? 'text-brand-700' : 'text-gray-500'"
-			>
-				<component :is="item.icon" class="h-5 w-5" />
-				<span class="truncate">{{ item.label }}</span>
-			</RouterLink>
-			<button
-				type="button"
-				class="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10.5px] font-medium text-gray-500"
-				@click="mobileNavOpen = true"
-			>
-				<Menu class="h-5 w-5" />
-				<span>More</span>
-			</button>
 		</nav>
 	</div>
 </template>

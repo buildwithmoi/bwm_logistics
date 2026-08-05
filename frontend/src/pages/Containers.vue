@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, Search, Container as ContainerIcon } from "lucide-vue-next";
+import { Plus, Search } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -14,6 +14,7 @@ import Select from "@/components/ui/Select.vue";
 import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 
@@ -72,11 +73,11 @@ watch(directionFilter, () => load());
 onMounted(load);
 
 const columns: Column[] = [
-	{ key: "container_no", label: "Container" },
+	{ key: "container_no", label: "Container", primary: true },
 	{ key: "direction", label: "Direction" },
-	{ key: "status", label: "Status" },
+	{ key: "status", label: "Status", trailing: true },
 	{ key: "current_milestone", label: "Milestone" },
-	{ key: "eta", label: "ETA" },
+	{ key: "eta", label: "ETA", nowrap: true },
 	{ key: "shipment_count", label: "Shipments", numeric: true },
 ];
 
@@ -174,46 +175,41 @@ async function save() {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Containers</h1>
-			<Button v-if="canCreate" @click="openDialog"><Plus class="h-4 w-4" /> New container</Button>
-		</header>
+		<PageHeader title="Containers">
+			<template v-if="canCreate" #actions>
+				<Button @click="openDialog"><Plus class="h-4 w-4" aria-hidden="true" /> New container</Button>
+			</template>
+		</PageHeader>
 
 		<!-- Direction — the primary lens (Import vs Export) -->
-		<div class="mb-4 flex gap-1.5">
+		<div class="chip-row mb-3" role="group" aria-label="Direction">
 			<button
 				v-for="d in ['', 'Import', 'Export']"
 				:key="d"
 				type="button"
-				class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-				:class="
-					directionFilter === d
-						? 'bg-coal-900 text-white'
-						: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-				"
+				class="chip !px-4 !py-2 !text-sm !font-semibold"
+				:class="directionFilter === d ? 'chip-seg-on' : 'chip-off'"
+				:aria-pressed="directionFilter === d"
 				@click="directionFilter = d"
 			>
-				{{ d === "Import" ? "⬇ Imports" : d === "Export" ? "⬆ Exports" : "All" }}
+				{{ d === "Import" ? "Imports" : d === "Export" ? "Exports" : "All" }}
 			</button>
 		</div>
 
 		<!-- Filters -->
-		<div class="mb-4 flex flex-wrap items-center gap-2">
-			<div class="relative min-w-56 flex-1 sm:max-w-xs">
-				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-				<Input v-model="search" placeholder="Search container, BL, vessel…" class="pl-9" />
+		<div class="mb-4 space-y-3">
+			<div class="relative sm:max-w-xs">
+				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+				<Input v-model="search" type="search" aria-label="Search containers" placeholder="Search container, BL, vessel…" class="pl-9" />
 			</div>
-			<div class="flex gap-1.5">
+			<div class="chip-row" role="group" aria-label="Status">
 				<button
 					v-for="s in ['', 'Active', 'Completed', 'Cancelled']"
 					:key="s"
 					type="button"
-					class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-					:class="
-						statusFilter === s
-							? 'bg-brand-600 text-white'
-							: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-					"
+					class="chip"
+					:class="statusFilter === s ? 'chip-on' : 'chip-off'"
+					:aria-pressed="statusFilter === s"
 					@click="statusFilter = s"
 				>
 					{{ s || "All" }}
@@ -232,14 +228,9 @@ async function save() {
 			@load-more="load(true)"
 		>
 			<template #cell-container_no="{ row }">
-				<div class="flex items-center gap-2.5 font-medium">
-					<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700">
-						<ContainerIcon class="h-4 w-4" />
-					</span>
-					<div>
-						<div>{{ row.container_no || "(not allocated)" }}</div>
-						<div class="text-xs font-normal text-muted-foreground">{{ row.name }}</div>
-					</div>
+				<div class="min-w-0 font-medium">
+					<div class="truncate">{{ row.container_no || "(not allocated)" }}</div>
+					<div class="text-xs font-normal text-muted-foreground">{{ row.name }}</div>
 				</div>
 			</template>
 			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>

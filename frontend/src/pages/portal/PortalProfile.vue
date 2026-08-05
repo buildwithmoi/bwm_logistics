@@ -56,7 +56,7 @@ async function toggle(field: "bwm_notify_email" | "bwm_notify_sms" | "bwm_notify
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<template v-else-if="profile">
 			<!-- Identity -->
-			<div class="flex items-center gap-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+			<div class="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 				<span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-xl font-bold text-coal-900">
 					{{ profile.customer_name?.[0]?.toUpperCase() || "C" }}
 				</span>
@@ -68,7 +68,7 @@ async function toggle(field: "bwm_notify_email" | "bwm_notify_sms" | "bwm_notify
 			</div>
 
 			<!-- Notification prefs -->
-			<div class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+			<div class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 				<h2 class="label-caps mb-4">How should we update you?</h2>
 				<div class="space-y-3">
 					<label class="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50">

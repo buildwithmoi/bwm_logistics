@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, MapPin, Package, Truck, UserPlus, HandCoins } from "lucide-vue-next";
+import { Plus, UserPlus, HandCoins } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -13,6 +13,7 @@ import Label from "@/components/ui/Label.vue";
 import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 
 const router = useRouter();
@@ -60,10 +61,10 @@ onMounted(() => {
 });
 
 const columns: Column[] = [
-	{ key: "name", label: "Run" },
-	{ key: "run_date", label: "Date" },
+	{ key: "name", label: "Run", primary: true },
+	{ key: "run_date", label: "Date", nowrap: true },
 	{ key: "driver_name", label: "Driver" },
-	{ key: "status", label: "Status" },
+	{ key: "status", label: "Status", trailing: true },
 	{ key: "stops", label: "Stops", numeric: true },
 	{ key: "cod", label: "COD", numeric: true },
 ];
@@ -181,43 +182,34 @@ async function saveDriver() {
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<div class="min-w-0 flex-1">
-				<h1 class="text-2xl font-semibold tracking-tight">Dispatch</h1>
-				<p v-if="!isDispatcher" class="mt-1 text-sm text-muted-foreground">Your delivery runs — tap one to work it.</p>
-			</div>
-			<template v-if="isDispatcher">
-				<Button variant="outline" @click="driverOpen = true"><UserPlus class="h-4 w-4" /> New driver</Button>
-				<Button @click="runOpen = true"><Plus class="h-4 w-4" /> New run</Button>
+		<PageHeader title="Dispatch" :subtitle="isDispatcher ? undefined : 'Your delivery runs — tap one to work it.'">
+			<template v-if="isDispatcher" #actions>
+				<Button variant="outline" @click="driverOpen = true"><UserPlus class="h-4 w-4" aria-hidden="true" /> New driver</Button>
+				<Button @click="runOpen = true"><Plus class="h-4 w-4" aria-hidden="true" /> New run</Button>
 			</template>
-		</header>
+		</PageHeader>
 
 		<!-- Ready-to-assign strip (dispatcher only) -->
 		<div
 			v-if="isDispatcher && (assignable.shipments.length || assignable.pickups.length)"
-			class="mb-4 flex flex-wrap gap-3"
+			class="mb-4 flex flex-wrap gap-2"
 		>
-			<div class="flex items-center gap-3 rounded-2xl bg-brand-50 px-5 py-3 ring-1 ring-brand-200">
-				<Package class="h-4 w-4 text-brand-700" />
-				<span class="text-sm"><b>{{ assignable.shipments.length }}</b> shipment(s) ready for delivery</span>
+			<div class="rounded-xl bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-200">
+				<b>{{ assignable.shipments.length }}</b> shipment(s) ready for delivery
 			</div>
-			<div class="flex items-center gap-3 rounded-2xl bg-brand-50 px-5 py-3 ring-1 ring-brand-200">
-				<Truck class="h-4 w-4 text-brand-700" />
-				<span class="text-sm"><b>{{ assignable.pickups.length }}</b> pickup request(s) waiting</span>
+			<div class="rounded-xl bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-200">
+				<b>{{ assignable.pickups.length }}</b> pickup request(s) waiting
 			</div>
 		</div>
 
-		<div class="mb-4 flex gap-1.5">
+		<div class="chip-row mb-4" role="group" aria-label="Status">
 			<button
 				v-for="s in STATUSES"
 				:key="s"
 				type="button"
-				class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-				:class="
-					statusFilter === s
-						? 'bg-brand-600 text-white'
-						: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-				"
+				class="chip"
+				:class="statusFilter === s ? 'chip-on' : 'chip-off'"
+				:aria-pressed="statusFilter === s"
 				@click="statusFilter = s"
 			>
 				{{ s || "All" }}
@@ -235,9 +227,7 @@ async function saveDriver() {
 			@load-more="load(true)"
 		>
 			<template #cell-name="{ row }">
-				<span class="inline-flex items-center gap-2 font-medium text-brand-700">
-					<MapPin class="h-4 w-4" /> {{ row.name }}
-				</span>
+				<span class="font-medium text-brand-700">{{ row.name }}</span>
 			</template>
 			<template #cell-run_date="{ value }">{{ fmtDate(value as string) }}</template>
 			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>

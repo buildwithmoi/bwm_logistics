@@ -4,3 +4,4 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
+bwm_logistics.patches.v1_0.import_client_opening_data

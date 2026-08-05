@@ -105,13 +105,13 @@ onMounted(async () => {
 
 			<div class="grid gap-4 sm:grid-cols-5">
 				<!-- Timeline -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 sm:col-span-3">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-3">
 					<h2 class="label-caps mb-4">Tracking timeline</h2>
 					<Timeline :events="data.timeline" />
 				</div>
 
 				<!-- Packages -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 sm:col-span-2">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-2">
 					<h2 class="label-caps mb-4">Your packages</h2>
 					<ul class="divide-y divide-gray-100 text-sm">
 						<li v-for="(p, i) in data.packages" :key="i" class="py-2">

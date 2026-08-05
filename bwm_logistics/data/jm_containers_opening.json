@@ -1,0 +1,135 @@
+{
+  "source": "logistics_excel_data.xlsx",
+  "branch": "Accra",
+  "containers": [
+    {
+      "container_no": "MEDU9878176",
+      "bl_no": "MEDUXX101538",
+      "eta": "2026-06-09",
+      "date_received": "2026-06-03",
+      "status": "Arrived",
+      "supplier": "US",
+      "invoice_ref": null,
+      "comment": null,
+      "packages": [
+        {
+          "description": "US Hen Leg Quarter",
+          "qty": 2568,
+          "unit": "PIECES"
+        }
+      ],
+      "qty_needs_split": false
+    },
+    {
+      "container_no": "MNBU0367216",
+      "bl_no": "2694851",
+      "eta": "2026-05-31",
+      "date_received": null,
+      "status": "In Transit",
+      "supplier": null,
+      "invoice_ref": null,
+      "comment": null,
+      "packages": [
+        {
+          "description": "Swedish Frozen Hen Whole",
+          "qty": 0,
+          "unit": "PIECES"
+        },
+        {
+          "description": "Polish Frozen Chicken Back",
+          "qty": 0,
+          "unit": "PIECES"
+        }
+      ],
+      "qty_needs_split": false
+    },
+    {
+      "container_no": "HLBU9524359",
+      "bl_no": "HLCUANR260516876",
+      "eta": "2026-06-07",
+      "date_received": null,
+      "status": "In Transit",
+      "supplier": null,
+      "invoice_ref": null,
+      "comment": null,
+      "packages": [
+        {
+          "description": "Beef Feet",
+          "qty": 0,
+          "unit": "PIECES"
+        }
+      ],
+      "qty_needs_split": false
+    },
+    {
+      "container_no": "MNBU9073254",
+      "bl_no": "270318870",
+      "eta": "2026-06-13",
+      "date_received": null,
+      "status": "In Transit",
+      "supplier": null,
+      "invoice_ref": null,
+      "comment": null,
+      "packages": [
+        {
+          "description": "Swedish Frozen Hen Whole",
+          "qty": 0,
+          "unit": "PIECES"
+        }
+      ],
+      "qty_needs_split": false
+    },
+    {
+      "container_no": "HLBU9940741",
+      "bl_no": "HLCUANR260540506",
+      "eta": "2026-06-15",
+      "date_received": null,
+      "status": "In Transit",
+      "supplier": null,
+      "invoice_ref": null,
+      "comment": null,
+      "packages": [
+        {
+          "description": "Beef Feet",
+          "qty": 0,
+          "unit": "PIECES"
+        }
+      ],
+      "qty_needs_split": false
+    }
+  ],
+  "distributions": [
+    {
+      "recipient": "Truck 1",
+      "product": "Hen Leg Quarter",
+      "qty": 1496.0,
+      "unit_price": null,
+      "destination": null,
+      "delivery_date": "2026-06-03"
+    },
+    {
+      "recipient": "Truck 2",
+      "product": "Hen Leg Quarter",
+      "qty": 600.0,
+      "unit_price": null,
+      "destination": null,
+      "delivery_date": "2026-06-03"
+    },
+    {
+      "recipient": "Ella",
+      "product": "Hen Leg Quarter",
+      "qty": 200.0,
+      "unit_price": null,
+      "destination": null,
+      "delivery_date": "2026-06-03"
+    },
+    {
+      "recipient": "Storage",
+      "product": "Hen Leg Quarter",
+      "qty": 272.0,
+      "unit_price": null,
+      "destination": null,
+      "delivery_date": "2026-06-03"
+    }
+  ]
+}

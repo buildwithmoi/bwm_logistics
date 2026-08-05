@@ -36,7 +36,24 @@ Frontend — from the repo root (wrappers) or inside `frontend/`:
 yarn dev        # Vite dev server on :8080, proxies API calls to Frappe on :8000
 yarn build      # builds into bwm_logistics/public/dist/main (manifest-based)
 yarn typecheck  # vue-tsc --noEmit
+yarn shots      # Playwright UI audit — see below (needs a running bench)
 ```
+
+**`yarn shots`** (from `frontend/`) drives the built SPA with Playwright and
+writes PNGs to `frontend/tests/__shots__/` at phone/tablet/desktop widths. It
+is a design-regression harness, not a unit runner:
+
+- `screenshots.spec.ts` — every route against the live site (empty states).
+- `populated.spec.ts` — the same list pages with `tests/fixtures.ts` stubbing
+  `/api/method/*`, so long names and full tables are exercised **without
+  writing a row to the database**. Fails on console errors and on any element
+  overflowing a 390px viewport outside a deliberate scroller.
+- `shell.spec.ts` — the shell contract (menu drawer, logo right, four bottom
+  tabs, `/scan` gone).
+
+Point it elsewhere with `BWM_BASE_URL` / `BWM_USER` / `BWM_PWD`; it defaults to
+`http://localhost:8004` and a dev staff login. Build first — it tests the
+compiled bundle, not the dev server.
 
 Backend — from the **bench root** (`fb-16-6/`):
 
@@ -45,6 +62,37 @@ bench --site local16.6 migrate          # also re-runs install.py role setup (af
 bench --site local16.6 run-tests --app bwm_logistics
 bench build --app bwm_logistics         # full asset build via Frappe
 ```
+
+## Client opening data (JM Containers)
+
+The client's live stock arrives as a working Excel. It reaches their site
+**through the repo**, not by anyone copying a spreadsheet onto a server:
+
+1. `import_jm_excel.extract` parses the workbook (sheets `Stock Tracker` and
+   `Distribution`) and freezes it into **`bwm_logistics/data/jm_containers_opening.json`**,
+   which is committed — a reviewable diff, and no openpyxl needed on the server.
+2. The patch `bwm_logistics.patches.v1_0.import_client_opening_data`
+   (`patches.txt`, `post_model_sync`) loads that file, so `bench migrate` after
+   a deploy brings the site up with real containers, trading shipments,
+   tracking events and distribution entries under the single **Accra** branch.
+
+To refresh from a newer spreadsheet:
+
+```bash
+bench --site <site> execute bwm_logistics.import_jm_excel.extract \
+    --kwargs "{'path': '/path/to/logistics excel data.xlsx'}"
+git add bwm_logistics/data/jm_containers_opening.json   # commit + push, then migrate on the site
+```
+
+Both the extract and the load are idempotent — `load()` skips containers whose
+`container_no` + `bl_no` already exist and distribution rows that already
+match, so re-running after a restore or a data fix is safe. A failed load is
+logged and does **not** block migrate; re-run it with
+`bench --site <site> execute bwm_logistics.import_jm_excel.load_opening`.
+
+Note: the .xlsx itself stays out of git (`*.xlsx` is gitignored) but the
+extracted JSON does carry real container/BL numbers, customer names and
+quantities — keep the repo private.
 
 Lint / format: `pre-commit run --all-files` (ruff + ruff-format for Python — tab
 indentation, line length 110; prettier + eslint for JS/Vue).
@@ -86,11 +134,27 @@ indentation, line length 110; prettier + eslint for JS/Vue).
 - Brand tokens (`tailwind.config.ts`): `brand` = gold ramp (600 `#b8860b` = primary CTA),
   `coal` = near-black bar scale (900 `#0f0f10`). CSS vars in `src/style.css`
   (`--primary: 43 89% 38%`). **Gold is never body text on white** — CTAs, active states,
-  tints only. Radius ladder `lg→xl→2xl→3xl→full`, shadows `xs/card/pop/modal`,
-  system-ui font stack, `.label-caps` utility, `tabular-nums` for figures.
-- Shell: top-bar-only `AppShell.vue` (h-14 coal-900 bar, pill tabs, Apps drawer,
-  avatar menu) switches tab sets between operator and portal mode; pages are
-  lazy-loaded and route names double as access keys.
+  tints only. Cards settle at `rounded-2xl` with `p-4 sm:p-6`; shadows
+  `xs/card/pop/modal`, system-ui font stack, `tabular-nums` for figures.
+- Shared utilities in `style.css`: `.label-caps`, and `.chip-row` / `.chip` /
+  `.chip-off` / `.chip-on` / `.chip-seg-on` for filter and segment strips — the
+  row bleeds and scrolls sideways on a phone instead of clipping.
+- Shared primitives: **`ui/PageHeader.vue`** (title + optional sub-line, actions
+  drop to their own row under `sm`) and **`ui/StatCard.vue`** (figure + label).
+  Pages should not hand-roll either.
+- **No decorative icons beside figures.** A stat tile is a number and its label;
+  icons are for controls that need them (menu, close, buttons). This is a
+  deliberate correction — the dashboard used to carry a coloured glyph per tile.
+- **`ui/DataTable.vue` renders twice**: a table from `md` up, one stacked card
+  per row below it, sharing the same `#cell-<key>` slots. Columns declare
+  `primary` (card headline), `trailing` (pinned top-right), `mobileHidden` and
+  `nowrap`. Never add a `min-w-[…]` table that a phone has to scroll.
+- Shell: `AppShell.vue` is a single h-14 coal-900 top bar — **menu button left**
+  (opens the one nav drawer, at every breakpoint), everyday tabs centre on
+  desktop, **logo hard right**. No avatar menu, no Apps launcher, no "Switch to
+  Desk"; Log out lives at the foot of the drawer. Mobile gets four plain bottom
+  tabs — no raised action and no "More". Pages are lazy-loaded and route names
+  double as access keys.
 
 ## Watch out for
 
@@ -99,6 +163,14 @@ indentation, line length 110; prettier + eslint for JS/Vue).
 - ERPNext's `Shipment` doctype is deliberately not reused (parcel-carrier model); the
   PRD specifies custom Container/Shipment doctypes. `Delivery Trip`/`Driver`/`Vehicle`
   are the intended reuse path for dispatch (P2).
+- **The warehouse camera-scan feature was removed** (page, `/scan` route, the
+  `scan` access-page key and the `html5-qrcode` dependency). Don't reintroduce it
+  without asking — the PRD still describes FR-CON-6, but the product decision is
+  that the app stays a lean read/track surface.
+- Don't run `prettier` over `frontend/src` — the sources are hand-formatted with
+  tabs and long class attributes per `.editorconfig` (max_line_length 99), and
+  the pre-commit hook pins prettier v2.7.1 for `javascript, vue, scss` only.
+  A stock prettier run reflows the whole tree at printWidth 80.
 - Backend Python uses **tab indentation** (ruff-format enforced), matching Frappe.
 - Branch is `main` (remote: github.com/buildwithmoi/bwm_logistics). CI spins up a
   fresh bench and runs `run-tests` on push/PR. Never add Co-Authored-By trailers to

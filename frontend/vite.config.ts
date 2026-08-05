@@ -79,7 +79,7 @@ export default defineConfig(({ mode, command }) => {
 					// CRITICAL: the plugin's default points at base+index.html, which
 					// this build never emits — the SW would throw at runtime.
 					navigateFallback: null,
-					maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // html5-qrcode chunk
+					maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
 					runtimeCaching: [
 						{
 							urlPattern: ({ request }) => request.mode === "navigate",

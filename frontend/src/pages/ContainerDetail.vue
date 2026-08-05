@@ -177,7 +177,7 @@ const infoRows = computed(() => [
 
 			<div class="grid gap-4 lg:grid-cols-12">
 				<!-- Info card -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 lg:col-span-5">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-5">
 					<h2 class="label-caps mb-4">Voyage details</h2>
 					<dl class="grid grid-cols-2 gap-x-4 gap-y-3">
 						<template v-for="r in infoRows" :key="r.label">
@@ -190,14 +190,14 @@ const infoRows = computed(() => [
 				</div>
 
 				<!-- Timeline -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100 lg:col-span-7">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-7">
 					<h2 class="label-caps mb-4">Milestone timeline</h2>
 					<Timeline :events="data.timeline" />
 				</div>
 			</div>
 
 			<!-- Tagged shipments -->
-			<div class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+			<div class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 				<div class="mb-4 flex items-center justify-between">
 					<h2 class="label-caps">Tagged shipments ({{ data.shipments.length }})</h2>
 					<RouterLink to="/shipments" class="text-xs font-medium text-brand-700 hover:underline">

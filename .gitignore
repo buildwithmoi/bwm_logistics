@@ -59,3 +59,12 @@ jspm_packages/
 
 # Local AI-assistant session settings
 .claude/
+
+# Playwright UI-audit harness (frontend/) — artefacts only, specs are tracked
+frontend/tests/.auth/
+frontend/tests/.output/
+frontend/tests/__shots__/
+frontend/playwright-report/
+
+# Bench-generated symlink into this machine's apps dir (absolute path — never commit)
+bwm_logistics/public/node_modules

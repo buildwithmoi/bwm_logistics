@@ -6,6 +6,7 @@ import { fmtDateTime } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import Input from "@/components/ui/Input.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 
 // "Who was told what, when" — the notification send log (FR-NOT-4).
@@ -46,38 +47,32 @@ watch(statusFilter, () => load());
 onMounted(load);
 
 const columns: Column[] = [
-	{ key: "creation", label: "When" },
+	{ key: "creation", label: "When", nowrap: true },
 	{ key: "channel", label: "Channel" },
 	{ key: "recipient", label: "Recipient" },
-	{ key: "milestone", label: "Milestone" },
+	{ key: "milestone", label: "Milestone", primary: true },
 	{ key: "shipment", label: "Shipment" },
-	{ key: "status", label: "Status" },
+	{ key: "status", label: "Status", trailing: true },
 ];
 </script>
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5">
-			<h1 class="text-2xl font-semibold tracking-tight">Notifications</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Every email and SMS sent to customers — and why any failed.</p>
-		</header>
+		<PageHeader title="Notifications" subtitle="Every email and SMS sent to customers — and why any failed." />
 
-		<div class="mb-4 flex flex-wrap items-center gap-2">
-			<div class="relative min-w-56 flex-1 sm:max-w-xs">
-				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-				<Input v-model="search" placeholder="Search recipient, shipment…" class="pl-9" />
+		<div class="mb-4 space-y-3">
+			<div class="relative sm:max-w-xs">
+				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+				<Input v-model="search" type="search" aria-label="Search notifications" placeholder="Search recipient, shipment…" class="pl-9" />
 			</div>
-			<div class="flex gap-1.5">
+			<div class="chip-row" role="group" aria-label="Status">
 				<button
 					v-for="s in ['', 'Sent', 'Failed', 'Skipped']"
 					:key="s"
 					type="button"
-					class="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
-					:class="
-						statusFilter === s
-							? 'bg-brand-600 text-white'
-							: 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
-					"
+					class="chip"
+					:class="statusFilter === s ? 'chip-on' : 'chip-off'"
+					:aria-pressed="statusFilter === s"
 					@click="statusFilter = s"
 				>
 					{{ s || "All" }}

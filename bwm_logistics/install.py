@@ -66,6 +66,32 @@ def after_install():
 	frappe.db.commit()
 
 
+def import_opening_data():
+	"""Load the client's opening stock on a **fresh install** only.
+
+	`bench install-app` marks every patch as already-run without executing it
+	(frappe.installer.set_all_patches_as_completed), so the migrate-time patch
+	`patches.v1_0.import_client_opening_data` never fires on a brand-new site.
+	This hook covers that path; both call the same idempotent loader, so a site
+	that gets one does not double-import from the other.
+
+	Deliberately NOT wired to after_migrate — that would resurrect records the
+	client had deleted on purpose. Ongoing migrates rely on the patch, which
+	Frappe runs exactly once.
+	"""
+	from bwm_logistics.import_jm_excel import load_opening
+
+	try:
+		load_opening()
+	except Exception:
+		frappe.db.rollback()
+		frappe.log_error(title="Opening data import failed", message=frappe.get_traceback())
+		print(
+			"WARNING: opening-balance import failed — install continued. See the Error Log, then re-run:\n"
+			"  bench --site <site> execute bwm_logistics.import_jm_excel.load_opening"
+		)
+
+
 def ensure_invoice_print_permissions():
 	"""Billing staff (Manager/Accounts) download branded invoice PDFs through
 	frappe's download_pdf endpoint, which checks DocType read/print perms —
@@ -188,7 +214,7 @@ def seed_logistics_roles():
 	make("Manager", all_pages=1)
 	make(
 		"Operations",
-		pages=["dashboard", "containers", "shipments", "stock", "scan", "dispatch", "customers", "billing", "reports", "notifications"],
+		pages=["dashboard", "containers", "shipments", "stock", "dispatch", "customers", "billing", "reports", "notifications"],
 	)
 	make("Accounts", pages=["dashboard", "customers", "billing", "stock", "reports", "notifications"])
 

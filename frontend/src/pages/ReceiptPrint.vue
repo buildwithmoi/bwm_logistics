@@ -60,7 +60,7 @@ onMounted(async () => {
 			<Button @click="printReceipt"><Printer class="h-4 w-4" /> Print</Button>
 		</header>
 
-		<div v-if="data" class="rounded-3xl bg-white p-8 ring-1 ring-gray-100 print:rounded-none print:ring-0">
+		<div v-if="data" class="rounded-2xl bg-white p-5 ring-1 ring-gray-100 sm:p-8 print:rounded-none print:ring-0">
 			<!-- Letterhead -->
 			<div class="mb-6 border-b-2 border-gray-900 pb-4 text-center">
 				<div class="text-lg font-extrabold tracking-tight">{{ data.business_name }}</div>

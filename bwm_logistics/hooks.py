@@ -89,7 +89,13 @@ home_page = "home"
 
 # before_install = "bwm_logistics.install.before_install"
 # Idempotent role setup; also wired to after_migrate so deployments self-heal.
-after_install = "bwm_logistics.install.after_install"
+# import_opening_data is install-only: `bench install-app` skips patches, so a
+# fresh site needs the client's opening stock loaded here, while existing sites
+# get it exactly once from patches.v1_0.import_client_opening_data.
+after_install = [
+	"bwm_logistics.install.after_install",
+	"bwm_logistics.install.import_opening_data",
+]
 after_migrate = ["bwm_logistics.install.after_install"]
 
 # Uninstallation

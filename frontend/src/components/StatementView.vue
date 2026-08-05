@@ -18,7 +18,7 @@ defineProps<{ data: StatementData }>();
 </script>
 
 <template>
-	<div class="bwm-statement rounded-3xl bg-white p-8 ring-1 ring-gray-100 print:rounded-none print:p-0 print:ring-0">
+	<div class="bwm-statement rounded-2xl bg-white p-5 ring-1 ring-gray-100 sm:p-8 print:rounded-none print:p-0 print:ring-0">
 		<!-- Letterhead -->
 		<div class="mb-6 flex items-start justify-between border-b-2 border-gray-900 pb-4">
 			<div>

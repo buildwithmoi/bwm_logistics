@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { Boxes, Ship } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import StatusBadge from "@/components/StatusBadge.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 
 // Stock (P8) — the client's Excel "Stock Tracker" + reconciliation, live:
 // what's on hand per product, per trading shipment, and what's still on the
@@ -46,33 +47,33 @@ onMounted(async () => {
 const fmtQty = (v: number) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const onHand = computed(() => data.value?.products.filter((p) => p.remaining > 0) || []);
 const soldOut = computed(() => data.value?.products.filter((p) => p.remaining <= 0) || []);
+
+const stockColumns: Column[] = [
+	{ key: "shipment", label: "Shipment", primary: true, nowrap: true },
+	{ key: "container", label: "Container" },
+	{ key: "status", label: "Status", trailing: true },
+	{ key: "received", label: "Received", numeric: true },
+	{ key: "distributed", label: "Distributed", numeric: true },
+	{ key: "remaining", label: "Remaining", numeric: true },
+];
 </script>
 
 <template>
 	<div class="mx-auto max-w-6xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700">
-				<Boxes class="h-5 w-5" />
-			</span>
-			<div class="min-w-0 flex-1">
-				<h1 class="text-2xl font-semibold tracking-tight">Stock</h1>
-				<p class="text-sm text-muted-foreground">
-					Own-goods containers: received, distributed, and what's left.
-				</p>
-			</div>
-			<RouterLink
-				to="/shipments"
-				class="text-sm font-medium text-brand-700 hover:underline"
-			>New trading shipment →</RouterLink>
-		</header>
+		<PageHeader title="Stock" subtitle="Own-goods containers: received, distributed, and what's left.">
+			<template #actions>
+				<RouterLink to="/shipments" class="text-sm font-medium text-brand-700 hover:underline">
+					New trading shipment →
+				</RouterLink>
+			</template>
+		</PageHeader>
 
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<template v-else-if="data">
 			<div
 				v-if="!data.shipments.length && !data.incoming.length"
-				class="rounded-3xl bg-white px-6 py-16 text-center ring-1 ring-gray-100"
+				class="rounded-2xl bg-white px-6 py-16 text-center ring-1 ring-gray-100"
 			>
-				<Boxes class="mx-auto mb-3 h-10 w-10 text-gray-300" />
 				<p class="font-medium">No trading shipments yet</p>
 				<p class="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
 					Create a shipment with type <b>Own Goods (Trading)</b> and its items appear
@@ -82,26 +83,32 @@ const soldOut = computed(() => data.value?.products.filter((p) => p.remaining <=
 
 			<template v-else>
 				<!-- On hand by product -->
-				<div class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-4 text-[15px] font-semibold tracking-tight">On hand by product</h2>
 					<div v-if="!onHand.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
 						Everything received has been distributed. 🎉
 					</div>
-					<div v-else class="space-y-3">
-						<div v-for="p in onHand" :key="p.product + p.unit" class="flex items-center gap-4">
-							<div class="w-56 min-w-0 shrink-0 sm:w-72">
-								<div class="truncate text-sm font-medium">{{ p.product }}</div>
+					<div v-else class="space-y-4">
+						<div v-for="p in onHand" :key="p.product + p.unit" class="sm:flex sm:items-center sm:gap-4">
+							<div class="min-w-0 sm:w-64 sm:shrink-0">
+								<div class="flex items-baseline justify-between gap-3 sm:block">
+									<span class="truncate text-sm font-medium">{{ p.product }}</span>
+									<span class="shrink-0 text-sm font-semibold tabular-nums sm:hidden">
+										{{ fmtQty(p.remaining) }}
+										<span class="text-xs font-normal text-muted-foreground">{{ p.unit.toLowerCase() }}</span>
+									</span>
+								</div>
 								<div class="text-xs text-muted-foreground">
 									{{ fmtQty(p.distributed) }} of {{ fmtQty(p.received) }} {{ p.unit.toLowerCase() }} distributed
 								</div>
 							</div>
-							<div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+							<div class="mt-1.5 h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100 sm:mt-0">
 								<div
 									class="h-full rounded-full bg-brand-500"
 									:style="{ width: `${Math.min(100, (p.distributed / Math.max(p.received, 1)) * 100)}%` }"
 								></div>
 							</div>
-							<div class="w-28 shrink-0 text-right">
+							<div class="hidden w-28 shrink-0 text-right sm:block">
 								<span class="font-semibold tabular-nums">{{ fmtQty(p.remaining) }}</span>
 								<span class="text-xs text-muted-foreground"> {{ p.unit.toLowerCase() }}</span>
 							</div>
@@ -113,53 +120,40 @@ const soldOut = computed(() => data.value?.products.filter((p) => p.remaining <=
 				</div>
 
 				<!-- Arrived trading shipments -->
-				<div class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<div class="mt-4">
 					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Containers in stock ({{ data.shipments.length }})</h2>
-					<div v-if="!data.shipments.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-						Nothing arrived yet.
-					</div>
-					<div v-else class="overflow-x-auto">
-						<table class="w-full min-w-[640px] text-sm">
-							<thead>
-								<tr class="text-left">
-									<th class="label-caps pb-2 pr-4">Shipment</th>
-									<th class="label-caps pb-2 pr-4">Container</th>
-									<th class="label-caps pb-2 pr-4">Status</th>
-									<th class="label-caps pb-2 pr-4 text-right">Received</th>
-									<th class="label-caps pb-2 pr-4 text-right">Distributed</th>
-									<th class="label-caps pb-2 text-right">Remaining</th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr v-for="s in data.shipments" :key="s.shipment" class="border-t border-gray-100">
-									<td class="py-2.5 pr-4">
-										<RouterLink :to="`/shipments/${s.shipment}`" class="font-medium text-brand-700 hover:underline">
-											{{ s.shipment }}
-										</RouterLink>
-										<span
-											v-if="s.current_milestone === 'Delayed'"
-											class="ml-1.5 rounded-full bg-red-50 px-2 py-0.5 text-[10.5px] font-semibold text-red-700 ring-1 ring-red-200"
-										>Delayed</span>
-									</td>
-									<td class="py-2.5 pr-4 text-muted-foreground">{{ s.container_no || s.container || "—" }}</td>
-									<td class="py-2.5 pr-4"><StatusBadge :status="s.status" /></td>
-									<td class="py-2.5 pr-4 text-right tabular-nums">{{ fmtQty(s.received) }}</td>
-									<td class="py-2.5 pr-4 text-right tabular-nums">{{ fmtQty(s.distributed) }}</td>
-									<td class="py-2.5 text-right font-semibold tabular-nums" :class="s.remaining > 0 ? 'text-brand-800' : 'text-gray-400'">
-										{{ fmtQty(s.remaining) }}
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
+					<DataTable
+						:columns="stockColumns"
+						:rows="data.shipments"
+						row-key="shipment"
+						empty-text="Nothing arrived yet."
+					>
+						<template #cell-shipment="{ row }">
+							<RouterLink :to="`/shipments/${row.shipment}`" class="font-medium text-brand-700 hover:underline">
+								{{ row.shipment }}
+							</RouterLink>
+							<span
+								v-if="row.current_milestone === 'Delayed'"
+								class="ml-1.5 rounded-full bg-red-50 px-2 py-0.5 text-[10.5px] font-semibold text-red-700 ring-1 ring-red-200"
+							>Delayed</span>
+						</template>
+						<template #cell-container="{ row }">
+							<span class="text-muted-foreground">{{ row.container_no || row.container || "—" }}</span>
+						</template>
+						<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
+						<template #cell-received="{ value }">{{ fmtQty(value as number) }}</template>
+						<template #cell-distributed="{ value }">{{ fmtQty(value as number) }}</template>
+						<template #cell-remaining="{ value }">
+							<span class="font-semibold" :class="(value as number) > 0 ? 'text-brand-800' : 'text-gray-400'">
+								{{ fmtQty(value as number) }}
+							</span>
+						</template>
+					</DataTable>
 				</div>
 
 				<!-- Incoming -->
-				<div class="mt-4 rounded-3xl bg-white p-6 ring-1 ring-gray-100">
-					<div class="mb-3 flex items-center gap-2">
-						<Ship class="h-4 w-4 text-brand-700" />
-						<h2 class="text-[15px] font-semibold tracking-tight">Incoming ({{ data.incoming.length }})</h2>
-					</div>
+				<div class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Incoming ({{ data.incoming.length }})</h2>
 					<div v-if="!data.incoming.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
 						Nothing on the water.
 					</div>

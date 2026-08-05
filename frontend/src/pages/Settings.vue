@@ -10,6 +10,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 // Settings (P7): left-rail section list (same pattern as Reports) — pick a
 // section on the left, its panel renders on the right. One Save covers the
@@ -266,24 +267,23 @@ async function copyWebhook() {
 
 <template>
 	<div class="mx-auto max-w-5xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3">
-			<div class="min-w-0 flex-1">
-				<h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-				<p class="mt-1 text-sm text-muted-foreground">Branding, website, tracking, notifications, branches and your team.</p>
-			</div>
-			<Button v-if="canEdit && showSave" :loading="saving" @click="save"><Save class="h-4 w-4" /> Save</Button>
-		</header>
+		<PageHeader title="Settings" subtitle="Branding, website, tracking, notifications, branches and your team.">
+			<template v-if="canEdit && showSave" #actions>
+				<Button :loading="saving" @click="save"><Save class="h-4 w-4" aria-hidden="true" /> Save</Button>
+			</template>
+		</PageHeader>
 
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
-		<div v-else class="flex flex-col gap-6 lg:flex-row">
+		<div v-else class="flex flex-col gap-4 lg:flex-row lg:gap-6">
 			<!-- Left rail (Reports pattern) -->
-			<nav class="flex shrink-0 gap-1 overflow-x-auto lg:w-52 lg:flex-col">
+			<nav class="chip-row shrink-0 lg:mx-0 lg:w-52 lg:flex-col lg:overflow-visible lg:px-0" aria-label="Settings section">
 				<button
 					v-for="s in sections"
 					:key="s.key"
 					type="button"
-					class="shrink-0 rounded-lg px-3.5 py-2 text-left text-sm font-medium transition-colors"
+					class="shrink-0 touch-manipulation rounded-lg px-3.5 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 					:class="section === s.key ? 'bg-brand-50 text-brand-800' : 'text-gray-600 hover:bg-gray-50'"
+					:aria-current="section === s.key ? 'page' : undefined"
 					@click="section = s.key"
 				>
 					{{ s.label }}
@@ -293,7 +293,7 @@ async function copyWebhook() {
 			<!-- Panel -->
 			<div class="min-w-0 flex-1">
 				<!-- Branding -->
-				<section v-if="section === 'branding'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-if="section === 'branding'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Branding</h2>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
@@ -310,7 +310,7 @@ async function copyWebhook() {
 				</section>
 
 				<!-- Website -->
-				<section v-else-if="section === 'website'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-else-if="section === 'website'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Public website</h2>
 					<div class="grid gap-4">
 						<div class="space-y-1.5">
@@ -339,7 +339,7 @@ async function copyWebhook() {
 				</section>
 
 				<!-- Carrier tracking -->
-				<section v-else-if="section === 'tracking'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-else-if="section === 'tracking'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Carrier auto-tracking</h2>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
@@ -376,7 +376,7 @@ async function copyWebhook() {
 				</section>
 
 				<!-- Notifications -->
-				<section v-else-if="section === 'notifications'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-else-if="section === 'notifications'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Customer notifications</h2>
 					<div class="mb-4 flex flex-wrap gap-2">
 						<label
@@ -430,7 +430,7 @@ async function copyWebhook() {
 				</section>
 
 				<!-- Branches -->
-				<section v-else-if="section === 'branches'" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-else-if="section === 'branches'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Branches</h2>
 					<p class="mb-4 text-sm text-muted-foreground">
 						Branches let you file shipments and deliveries per location and filter
@@ -455,7 +455,7 @@ async function copyWebhook() {
 				</section>
 
 				<!-- Staff & Roles -->
-				<section v-else-if="section === 'staff' && canEdit" class="rounded-3xl bg-white p-6 ring-1 ring-gray-100">
+				<section v-else-if="section === 'staff' && canEdit" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<div class="mb-4 flex flex-wrap items-center gap-2">
 						<h2 class="label-caps min-w-0 flex-1">Staff & roles</h2>
 						<Button size="sm" variant="outline" @click="openRole()"><ShieldCheck class="h-4 w-4" /> New role</Button>
