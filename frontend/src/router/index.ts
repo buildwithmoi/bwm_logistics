@@ -11,12 +11,17 @@ const routes = [
 	// ── Operator app ──────────────────────────────────────────────────────────
 	{ path: "/", name: "dashboard", component: () => import("@/pages/Dashboard.vue") },
 	{ path: "/containers", name: "containers", component: () => import("@/pages/Containers.vue") },
+	// Create screens are pages, not dialogs — anything with more than a handful
+	// of fields gets its own URL. Declared before the :name routes so "new" can
+	// never be read as a record id.
+	{ path: "/containers/new", name: "container-new", component: () => import("@/pages/ContainerNew.vue") },
 	{
 		path: "/containers/:name",
 		name: "container-detail",
 		component: () => import("@/pages/ContainerDetail.vue"),
 	},
 	{ path: "/shipments", name: "shipments", component: () => import("@/pages/Shipments.vue") },
+	{ path: "/shipments/new", name: "shipment-new", component: () => import("@/pages/ShipmentNew.vue") },
 	{
 		path: "/shipments/:name",
 		name: "shipment-detail",
@@ -29,6 +34,7 @@ const routes = [
 	},
 	{ path: "/stock", name: "stock", component: () => import("@/pages/Stock.vue") },
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
+	{ path: "/dispatch/new", name: "dispatch-run-new", component: () => import("@/pages/DispatchRunNew.vue") },
 	{
 		path: "/dispatch/:name",
 		name: "dispatch-run",
@@ -41,6 +47,8 @@ const routes = [
 		component: () => import("@/pages/CustomerStatement.vue"),
 	},
 	{ path: "/billing", name: "billing", component: () => import("@/pages/Billing.vue") },
+	{ path: "/billing/invoice/new", name: "invoice-new", component: () => import("@/pages/InvoiceNew.vue") },
+	{ path: "/billing/purchase/new", name: "purchase-new", component: () => import("@/pages/PurchaseNew.vue") },
 	{
 		path: "/billing/receipt/:name",
 		name: "billing-receipt",
@@ -100,11 +108,16 @@ export const router = createRouter({
 // Sub-pages that inherit a parent page's access key.
 const ACCESS_ALIAS: Record<string, string> = {
 	"container-detail": "containers",
+	"container-new": "containers",
 	"shipment-detail": "shipments",
 	"shipment-label": "shipments",
+	"shipment-new": "shipments",
 	"dispatch-run": "dispatch",
+	"dispatch-run-new": "dispatch",
 	"customer-statement": "customers",
 	"billing-receipt": "billing",
+	"invoice-new": "billing",
+	"purchase-new": "billing",
 	"portal-shipment-detail": "portal-shipments",
 	"portal-statement": "portal-invoices",
 };

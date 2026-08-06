@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Package, Flag, ReceiptText, Printer } from "lucide-vue-next";
+import { Flag, ReceiptText, Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtMoney, fmtWeight, fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -12,6 +12,11 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
+import Sheet from "@/components/ui/Sheet.vue";
+import Badge from "@/components/ui/Badge.vue";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
+import DataList from "@/components/ui/DataList.vue";
+import DataRow from "@/components/ui/DataRow.vue";
 import SearchCombo from "@/components/ui/SearchCombo.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
@@ -232,14 +237,35 @@ async function invoiceDistribution(row: DistRow) {
 	}
 }
 
-// ── record shipment event ───────────────────────────────────────────────────
+// ── update status ───────────────────────────────────────────────────────────
+// Recording a milestone IS how a shipment's status changes (Tracking Event →
+// Shipment.apply_milestone). The old UI made you type the milestone as free
+// text, so unless you already knew the exact strings in MILESTONE_STATUS you
+// could not move a shipment at all. Now the server hands over the list and its
+// resulting status, and picking one is the whole interaction.
 const eventOpen = ref(false);
 const saving = ref(false);
 const form = reactive({ milestone: "", location: "", remarks: "", notify: true });
 
+interface MilestoneOption {
+	milestone: string;
+	status: string | null;
+}
+const milestoneOptions = computed<MilestoneOption[]>(
+	() => (data.value?.milestone_options as MilestoneOption[]) || [],
+);
+
+function openStatus() {
+	form.milestone = "";
+	form.location = "";
+	form.remarks = "";
+	form.notify = !isTrading.value; // no customer to notify on own goods
+	eventOpen.value = true;
+}
+
 async function recordEvent() {
 	if (!form.milestone) {
-		toast.warning("Enter a milestone");
+		toast.warning("Pick the new status");
 		return;
 	}
 	saving.value = true;
@@ -330,49 +356,55 @@ async function makeInvoice() {
 	<div class="mx-auto max-w-6xl">
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<template v-else-if="data">
-			<header class="mb-6 flex flex-wrap items-center gap-3">
-				<RouterLink
-					to="/shipments"
-					class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-				>
-					<ArrowLeft class="h-4 w-4" />
-				</RouterLink>
-				<span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700">
-					<Package class="h-5 w-5" />
-				</span>
-				<div class="min-w-0 flex-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<h1 class="text-2xl font-semibold tracking-tight">{{ data.name }}</h1>
-						<StatusBadge :status="data.status" />
-						<DirectionBadge :direction="data.direction" />
-						<span
-							v-if="isTrading"
-							class="rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-brand-700"
-						>Own goods</span>
-						<span
-							v-if="data.current_milestone === 'Delayed'"
-							class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-700 ring-1 ring-red-200"
-						>Delayed</span>
+			<DetailHeader
+				:title="data.name"
+				back-to="/shipments"
+				back-label="Shipments"
+				:subtitle="`${isTrading ? 'Trading shipment' : data.customer_name || 'No customer'} · ${data.destination || 'destination not set'}`"
+			>
+				<template #badges>
+					<StatusBadge :status="data.status" />
+					<DirectionBadge :direction="data.direction" />
+					<Badge v-if="isTrading" tone="brand">Own goods</Badge>
+					<Badge v-if="data.current_milestone === 'Delayed'" tone="danger" dot>Delayed</Badge>
+				</template>
+				<template #actions>
+					<!-- Updating where a shipment has got to is THE everyday job on
+					     this screen, so it is the primary button, named for the
+					     outcome rather than for the record it writes. -->
+					<Button v-if="canEdit" @click="openStatus">
+						<Flag class="h-4 w-4" aria-hidden="true" />
+						<span class="hidden sm:inline">Update status</span>
+						<span class="sm:hidden">Status</span>
+					</Button>
+					<Button
+						v-if="canBill && !data.invoice && (data.charges || []).length"
+						variant="outline"
+						:loading="invoicing"
+						@click="makeInvoice"
+					>
+						<ReceiptText class="h-4 w-4" aria-hidden="true" />
+						<span class="hidden sm:inline">Create invoice</span>
+						<span class="sm:hidden">Invoice</span>
+					</Button>
+					<Button variant="outline" size="icon" title="Print labels" aria-label="Print labels" @click="router.push(`/shipments/${name}/label`)">
+						<Printer class="h-4 w-4" aria-hidden="true" />
+					</Button>
+				</template>
+			</DetailHeader>
+
+			<!-- Where it is now, and the one tap that moves it on. -->
+			<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100">
+				<div class="min-w-0">
+					<div class="label-caps">Current status</div>
+					<div class="mt-1 flex flex-wrap items-center gap-2">
+						<span class="text-lg font-semibold tracking-tight">{{ data.current_milestone || "No milestones yet" }}</span>
+						<!-- Only when it adds something: "In Transit / In Transit" is noise. -->
+						<StatusBadge v-if="data.status !== data.current_milestone" :status="data.status" />
 					</div>
-					<p class="text-sm text-muted-foreground">
-						{{ isTrading ? "Trading shipment" : data.customer_name }} · {{ data.destination || "destination not set" }}
-						<span v-if="data.current_milestone"> · {{ data.current_milestone }}</span>
-					</p>
 				</div>
-				<Button variant="outline" @click="router.push(`/shipments/${name}/label`)">
-					<Printer class="h-4 w-4" /> Labels
-				</Button>
-				<Button v-if="canEdit" variant="outline" @click="eventOpen = true">
-					<Flag class="h-4 w-4" /> Record event
-				</Button>
-				<Button
-					v-if="canBill && !data.invoice && (data.charges || []).length"
-					:loading="invoicing"
-					@click="makeInvoice"
-				>
-					<ReceiptText class="h-4 w-4" /> Create invoice
-				</Button>
-			</header>
+				<Button v-if="canEdit" variant="outline" class="shrink-0" @click="openStatus">Update</Button>
+			</div>
 
 			<!-- P&L (Managers/Accounts — server-gated) -->
 			<div v-if="canBill && pnl" class="mb-4 rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
@@ -414,7 +446,7 @@ async function makeInvoice() {
 					</div>
 				</div>
 				<!-- Linked documents -->
-				<div v-if="pnl.sales.length || pnl.purchases.length" class="mt-4 grid gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
+				<div v-if="pnl.sales.length || pnl.purchases.length" class="mt-4 grid grid-cols-1 gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
 					<div v-if="pnl.sales.length">
 						<div class="label-caps mb-2 !text-white/40">Sales</div>
 						<div v-for="s in pnl.sales" :key="s.name" class="flex justify-between py-1 text-sm">
@@ -432,7 +464,7 @@ async function makeInvoice() {
 				</div>
 			</div>
 
-			<div class="grid gap-4 lg:grid-cols-12">
+			<div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
 				<div class="space-y-4 lg:col-span-5">
 					<!-- Container card -->
 					<div v-if="data.container_info" class="rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
@@ -451,14 +483,14 @@ async function makeInvoice() {
 
 					<!-- Parties -->
 					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-						<h2 class="label-caps mb-4">Consignee & route</h2>
-						<dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-							<div><dt class="label-caps !text-[10px]">Receiver</dt><dd class="mt-0.5">{{ data.consignee_name || "—" }}</dd></div>
-							<div><dt class="label-caps !text-[10px]">Phone</dt><dd class="mt-0.5">{{ data.consignee_phone || "—" }}</dd></div>
-							<div><dt class="label-caps !text-[10px]">Origin</dt><dd class="mt-0.5">{{ data.origin || "—" }}</dd></div>
-							<div><dt class="label-caps !text-[10px]">Destination</dt><dd class="mt-0.5">{{ data.destination || "—" }}</dd></div>
-							<div class="col-span-2"><dt class="label-caps !text-[10px]">Delivery address</dt><dd class="mt-0.5">{{ data.delivery_address || "—" }}</dd></div>
-						</dl>
+						<h2 class="label-caps mb-2 sm:mb-4">Consignee &amp; route</h2>
+						<DataList>
+							<DataRow label="Receiver" :value="data.consignee_name as string" />
+							<DataRow label="Phone" :value="data.consignee_phone as string" />
+							<DataRow label="Origin" :value="data.origin as string" />
+							<DataRow label="Destination" :value="data.destination as string" />
+							<DataRow label="Delivery address" :value="data.delivery_address as string" wide />
+						</DataList>
 					</div>
 
 					<!-- Packages -->
@@ -633,7 +665,7 @@ async function makeInvoice() {
 			<!-- ── Record distribution dialog ────────────────────────────────── -->
 			<Dialog v-model:open="distOpen" title="Record distribution" size="wide">
 				<div class="space-y-4">
-					<div class="grid gap-4 sm:grid-cols-2">
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
 							<Label required>Product</Label>
 							<Select v-model="distForm.product" :options="productOptions" />
@@ -688,36 +720,61 @@ async function makeInvoice() {
 			</Dialog>
 
 			<!-- ── Record event dialog ───────────────────────────────────────── -->
-			<Dialog v-model:open="eventOpen" title="Record shipment event">
+			<Sheet
+				v-model:open="eventOpen"
+				title="Update status"
+				:description="`${data.name} is currently ${data.current_milestone || 'not started'}.`"
+			>
 				<div class="space-y-4">
-					<p class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-muted-foreground">
-						This event applies to <b>this shipment only</b> (e.g. "Received at warehouse",
-						"Out for delivery"). Container-wide milestones are recorded on the container.
-					</p>
+					<fieldset>
+						<legend class="label-caps mb-2">Move to</legend>
+						<div class="space-y-1.5">
+							<label
+								v-for="opt in milestoneOptions"
+								:key="opt.milestone"
+								class="flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors"
+								:class="form.milestone === opt.milestone ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:bg-gray-50'"
+							>
+								<input
+									v-model="form.milestone"
+									type="radio"
+									name="milestone"
+									:value="opt.milestone"
+									class="h-4 w-4 shrink-0 accent-[#b8860b]"
+								/>
+								<span class="min-w-0 flex-1 text-sm font-medium">{{ opt.milestone }}</span>
+								<Badge v-if="opt.status" tone="neutral">{{ opt.status }}</Badge>
+								<Badge v-else tone="warning">flag only</Badge>
+							</label>
+						</div>
+					</fieldset>
+
 					<div class="space-y-1.5">
-						<Label required>Milestone</Label>
-						<Input v-model="form.milestone" placeholder="e.g. Out for Delivery" />
+						<Label for="ev-location">Location <span class="font-normal text-muted-foreground">(optional)</span></Label>
+						<Input id="ev-location" v-model="form.location" placeholder="e.g. Tema Port" />
 					</div>
 					<div class="space-y-1.5">
-						<Label>Location</Label>
-						<Input v-model="form.location" />
+						<Label for="ev-remarks">Remarks <span class="font-normal text-muted-foreground">(optional)</span></Label>
+						<Textarea id="ev-remarks" v-model="form.remarks" :rows="2" />
 					</div>
-					<div class="space-y-1.5">
-						<Label>Remarks</Label>
-						<Textarea v-model="form.remarks" :rows="2" />
-					</div>
-					<label class="flex cursor-pointer items-center gap-2.5 rounded-xl bg-brand-50 px-4 py-3">
-						<input v-model="form.notify" type="checkbox" class="h-4 w-4 rounded accent-[#b8860b]" />
-						<span class="text-sm font-medium">Notify this customer</span>
+					<label
+						v-if="!isTrading"
+						class="flex cursor-pointer items-center gap-2.5 rounded-xl bg-brand-50 px-4 py-3"
+					>
+						<input v-model="form.notify" type="checkbox" class="h-4 w-4 shrink-0 rounded accent-[#b8860b]" />
+						<span class="text-sm">
+							<span class="font-medium">Notify {{ data.customer_name || "the customer" }}</span>
+							<span class="block text-xs text-muted-foreground">Sends the tracking update by email/SMS</span>
+						</span>
 					</label>
 				</div>
 				<template #footer>
 					<div class="flex justify-end gap-2">
 						<Button variant="outline" @click="eventOpen = false">Cancel</Button>
-						<Button :loading="saving" @click="recordEvent">Record</Button>
+						<Button :loading="saving" :disabled="!form.milestone" @click="recordEvent">Update status</Button>
 					</div>
 				</template>
-			</Dialog>
+			</Sheet>
 		</template>
 	</div>
 </template>

@@ -122,17 +122,20 @@ function onBlur() {
 			:disabled="disabled"
 			@click="openMenu"
 		>
-			<span v-if="modelValue" class="flex-1 truncate text-gray-900">{{ selectedLabel }}</span>
-			<span v-else class="flex-1 truncate text-gray-400">{{ placeholder || "Select…" }}</span>
+			<!-- min-w-0 is load-bearing: `truncate` sets white-space:nowrap, so
+			     without it the label's min-content is the whole string and a long
+			     placeholder stretches the grid track it sits in. -->
+			<span v-if="modelValue" class="min-w-0 flex-1 truncate text-gray-900">{{ selectedLabel }}</span>
+			<span v-else class="min-w-0 flex-1 truncate text-gray-400">{{ placeholder || "Select…" }}</span>
 			<button
 				v-if="modelValue"
 				type="button"
-				class="text-xs text-gray-400 hover:text-gray-700"
+				class="shrink-0 text-xs text-gray-400 hover:text-gray-700"
 				@click.stop="clear"
 			>
 				clear
 			</button>
-			<ChevronDown class="h-3.5 w-3.5 text-gray-400" />
+			<ChevronDown class="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
 		</button>
 
 		<Transition

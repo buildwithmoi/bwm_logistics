@@ -68,3 +68,4 @@ frontend/playwright-report/
 
 # Bench-generated symlink into this machine's apps dir (absolute path — never commit)
 bwm_logistics/public/node_modules
+test-results/

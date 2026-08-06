@@ -46,10 +46,19 @@ is a design-regression harness, not a unit runner:
 - `screenshots.spec.ts` — every route against the live site (empty states).
 - `populated.spec.ts` — the same list pages with `tests/fixtures.ts` stubbing
   `/api/method/*`, so long names and full tables are exercised **without
-  writing a row to the database**. Fails on console errors and on any element
-  overflowing a 390px viewport outside a deliberate scroller.
+  writing a row to the database**.
 - `shell.spec.ts` — the shell contract (menu drawer, logo right, four bottom
   tabs, `/scan` gone).
+- `create-flows.spec.ts` — every "New …" button lands on a real URL that
+  survives reload and Back, and the dialogs that remain still fit a phone
+  (dialog contents only exist once opened, so the route sweep never sees them).
+
+**`tests/overflow.ts` is the mobile-fit check** and it is easy to get wrong.
+The shell scrolls inside `<main>`, not the document, so
+`documentElement.scrollWidth` never grows however far a field spills; and
+because `main` is `overflow-y: auto` its *computed* `overflow-x` is `auto` too,
+so "skip anything inside a scroller" skips the whole page. Measure `main`
+itself. Both traps were live here and hid real overflow.
 
 Point it elsewhere with `BWM_BASE_URL` / `BWM_USER` / `BWM_PWD`; it defaults to
 `http://localhost:8004` and a dev staff login. Build first — it tests the
@@ -142,6 +151,41 @@ indentation, line length 110; prettier + eslint for JS/Vue).
 - Shared primitives: **`ui/PageHeader.vue`** (title + optional sub-line, actions
   drop to their own row under `sm`) and **`ui/StatCard.vue`** (figure + label).
   Pages should not hand-roll either.
+- **Creating a record is a page, not a dialog**, whenever it takes more than a
+  handful of fields — containers, shipments, delivery runs, invoices, purchases
+  all live at `/…/new` and are built from **`ui/FormPage.vue`** +
+  **`ui/FormSection.vue`**. Dialogs stay for the small stuff: a customer, a
+  driver, a payment, a milestone. A repeating line-item table is the tell that
+  something wants a page. (Rate cards are the one repeating-table form still in
+  a dialog.)
+- **Record screens wear `ui/DetailHeader.vue`**: a labelled back control ("‹
+  Shipments", 40px target — never a bare arrow in the margin), actions pinned
+  **right**, then the title + status badges on their own row. Back calls
+  `router.back()` when there's history to pop so the list keeps its scroll and
+  filters, and falls back to the parent URL for a reloaded deep link.
+- **Actions go bottom-right / top-right, at every width** — including on a
+  phone. Full-width stacked buttons read as two equal choices and put Cancel
+  under the thumb.
+- **A status is changed by picking from a list, never by typing.** Shipments and
+  containers both open `ui/Sheet.vue` — a bottom sheet on a phone, a centred
+  dialog from `sm` — listing each milestone with the status it lands on.
+  `api/shipments.milestone_options()` is the source; a free-text milestone box
+  is unusable because the accepted values live in `MILESTONE_STATUS`.
+- **Mobile is not desktop.** The PWA is treated as an app: `DataTable` renders
+  cards vs a table, `Sheet` rises from the bottom vs centring, `DataList`
+  stacks label/value rows vs two columns, and header actions collapse to icons.
+  Don't "fix" these into one shared layout.
+- Shared display primitives: **`ui/Badge.vue`** (the one pill — `StatusBadge`
+  and `DirectionBadge` are its callers), **`ui/DataList.vue` + `ui/DataRow.vue`**
+  (label/value pairs on record screens). `DataTable` takes an optional
+  `rowTone` for a coloured left edge — reserved for "needs attention"; accent
+  everything and it signals nothing.
+- **Two mobile-layout traps, both fixed globally — don't reintroduce them:**
+  a responsive grid written as `grid sm:grid-cols-2` has *no* base column, so
+  its implicit `auto` track takes a min-content floor and overflows a phone —
+  always write `grid grid-cols-1 sm:grid-cols-2`. And a flex child that
+  `truncate`s needs `min-w-0`, or its nowrap text becomes that floor. `style.css`
+  also zeroes `min-width` on `input`/`select`/`textarea` for the same reason.
 - **No decorative icons beside figures.** A stat tile is a number and its label;
   icons are for controls that need them (menu, close, buttons). This is a
   deliberate correction — the dashboard used to carry a coloured glyph per tile.
@@ -160,6 +204,12 @@ indentation, line length 110; prettier + eslint for JS/Vue).
 
 - **`ex_beauty` may be copied from; `cargo_management` (AgileShift) must NOT be** — it's
   AGPLv3 and this app is MIT. Patterns only.
+- **Frappe date filters are NULL-permissive.** `("<=", some_date)` compiles to
+  `IFNULL(col, '') <= '<date>'`, and `''` sorts before every date — so rows
+  where the column is *unset* match. `alerts.at_risk_containers()` needs its
+  explicit `["demurrage_start_date", "is", "set"]` guard for exactly this
+  reason; without it the demurrage banner flagged the entire active fleet.
+  Assume any date `<=`/`<` filter needs the same guard.
 - ERPNext's `Shipment` doctype is deliberately not reused (parcel-carrier model); the
   PRD specifies custom Container/Shipment doctypes. `Delivery Trip`/`Driver`/`Vehicle`
   are the intended reuse path for dispatch (P2).

@@ -1,24 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import {
-	ArrowLeft,
-	MapPin,
-	Navigation,
-	Package,
-	Truck,
-	Play,
-	Flag,
-	HandCoins,
-	Camera,
-	CheckCircle2,
-	XCircle,
-} from "lucide-vue-next";
+import { Navigation, Package, Play, Flag, HandCoins, Camera, CheckCircle2, XCircle } from "lucide-vue-next";
 import { call, uploadFile } from "@/lib/frappe";
 import { fmtDate, fmtMoney, fmtDateTime } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
 import Button from "@/components/ui/Button.vue";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Textarea from "@/components/ui/Textarea.vue";
@@ -201,40 +190,30 @@ async function confirmFail() {
 	<div class="mx-auto max-w-3xl">
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<template v-else-if="run">
-			<!-- Header -->
-			<header class="mb-5 flex flex-wrap items-center gap-3">
-				<RouterLink
-					to="/dispatch"
-					class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-				>
-					<ArrowLeft class="h-4 w-4" />
-				</RouterLink>
-				<span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700">
-					<MapPin class="h-5 w-5" />
-				</span>
-				<div class="min-w-0 flex-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">{{ run.name }}</h1>
-						<StatusBadge :status="run.status" />
-					</div>
-					<p class="text-sm text-muted-foreground">
-						{{ fmtDate(run.run_date) }} · {{ run.driver_name }}
-						<template v-if="run.vehicle"> · <Truck class="inline h-3.5 w-3.5" /> {{ run.vehicle }}</template>
-					</p>
-				</div>
-				<Button v-if="['Draft', 'Scheduled'].includes(run.status)" @click="startRun">
-					<Play class="h-4 w-4" /> Start run
-				</Button>
-				<Button v-else-if="run.status === 'In Transit' && !openStops.length" @click="finishRun">
-					<Flag class="h-4 w-4" /> Finish run
-				</Button>
-				<Button
-					v-else-if="run.status === 'Completed' && !run.cod_reconciled && canReconcile && (run.cod_collected_total || 0) > 0"
-					@click="reconcile"
-				>
-					<HandCoins class="h-4 w-4" /> Reconcile {{ fmtMoney(run.cod_collected_total) }}
-				</Button>
-			</header>
+			<DetailHeader
+				:title="run.name"
+				back-to="/dispatch"
+				back-label="Dispatch"
+				:subtitle="`${fmtDate(run.run_date)} · ${run.driver_name}${run.vehicle ? ' · ' + run.vehicle : ''}`"
+			>
+				<template #badges>
+					<StatusBadge :status="run.status" />
+				</template>
+				<template #actions>
+					<Button v-if="['Draft', 'Scheduled'].includes(run.status)" @click="startRun">
+						<Play class="h-4 w-4" aria-hidden="true" /> Start run
+					</Button>
+					<Button v-else-if="run.status === 'In Transit' && !openStops.length" @click="finishRun">
+						<Flag class="h-4 w-4" aria-hidden="true" /> Finish run
+					</Button>
+					<Button
+						v-else-if="run.status === 'Completed' && !run.cod_reconciled && canReconcile && (run.cod_collected_total || 0) > 0"
+						@click="reconcile"
+					>
+						<HandCoins class="h-4 w-4" aria-hidden="true" /> Reconcile {{ fmtMoney(run.cod_collected_total) }}
+					</Button>
+				</template>
+			</DetailHeader>
 
 			<!-- COD summary -->
 			<div

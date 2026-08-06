@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Plus, Search } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
@@ -9,13 +9,10 @@ import { useSessionStore } from "@/stores/session";
 import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
-import Label from "@/components/ui/Label.vue";
-import Select from "@/components/ui/Select.vue";
-import SearchCombo from "@/components/ui/SearchCombo.vue";
-import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import Badge from "@/components/ui/Badge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 
 const router = useRouter();
@@ -32,6 +29,20 @@ interface Row extends Record<string, unknown> {
 	current_milestone?: string;
 	eta?: string;
 	shipment_count: number;
+	port_of_loading?: string | null;
+	port_of_discharge?: string | null;
+	// Demurrage: at_risk when the clock starts inside the window (or has
+	// started, in which case days_left goes negative).
+	at_risk?: boolean;
+	days_left?: number | null;
+}
+
+/** "Shanghai → Tema" when both ports are known, else whichever one is. */
+function route(row: Row): string | null {
+	const from = row.port_of_loading || null;
+	const to = row.port_of_discharge || null;
+	if (from && to) return `${from} → ${to}`;
+	return to ? `→ ${to}` : from;
 }
 const rows = ref<Row[]>([]);
 const total = ref(0);
@@ -74,110 +85,30 @@ onMounted(load);
 
 const columns: Column[] = [
 	{ key: "container_no", label: "Container", primary: true },
-	{ key: "direction", label: "Direction" },
+	// Route earns its place over a Direction badge, which mostly restates the
+	// Imports/Exports tab you already picked.
+	{ key: "route", label: "Route" },
+	// Two trailing cells rather than one: DataTable stacks them on a phone, so
+	// the container number keeps its width instead of truncating behind badges.
+	{ key: "risk", label: "", trailing: true },
 	{ key: "status", label: "Status", trailing: true },
 	{ key: "current_milestone", label: "Milestone" },
 	{ key: "eta", label: "ETA", nowrap: true },
 	{ key: "shipment_count", label: "Shipments", numeric: true },
 ];
 
-// ── new container dialog ───────────────────────────────────────────────────
-const dialogOpen = ref(false);
-const saving = ref(false);
+// Creating a container is a page (/containers/new), not a dialog — too many
+// fields to cram into a modal, and the URL is worth having.
 const canCreate = computed(() => session.can("containers", "create"));
-const form = reactive({
-	direction: "Import",
-	container_no: "",
-	container_type: "",
-	shipping_line: "" as string | null,
-	vessel: "",
-	bl_no: "",
-	booking_no: "",
-	port_of_loading: "" as string | null,
-	port_of_discharge: "" as string | null,
-	etd: "",
-	eta: "",
-	free_days: "",
-});
-
-interface Masters {
-	shipping_lines: string[];
-	ports: string[];
-	container_types: string[];
-}
-const masters = ref<Masters>({ shipping_lines: [], ports: [], container_types: [] });
-async function openDialog() {
-	dialogOpen.value = true;
-	try {
-		masters.value = await call<Masters>("bwm_logistics.api.containers.get_masters");
-	} catch {
-		/* dropdowns degrade to free entry */
-	}
-}
-
-// Link-field fetchers: client-side filter over the masters list, with an
-// inline "create" action so unknown lines/ports never block the flow.
-type MasterHit = Record<string, unknown> & { name: string };
-function masterFetcher(list: () => string[]) {
-	return async (q: string): Promise<MasterHit[]> =>
-		list()
-			.filter((n) => n.toLowerCase().includes(q.toLowerCase()))
-			.slice(0, 20)
-			.map((n) => ({ name: n }));
-}
-const fetchLines = masterFetcher(() => masters.value.shipping_lines);
-const fetchPorts = masterFetcher(() => masters.value.ports);
-
-async function quickAdd(
-	doctype: "Shipping Line" | "Port",
-	field: "shipping_line" | "port_of_loading" | "port_of_discharge",
-	value: string,
-) {
-	if (!value) return;
-	try {
-		const res = await call<{ name: string }>("bwm_logistics.api.containers.quick_add_master", { doctype, value });
-		if (doctype === "Shipping Line" && !masters.value.shipping_lines.includes(res.name)) {
-			masters.value.shipping_lines.push(res.name);
-		} else if (doctype === "Port" && !masters.value.ports.includes(res.name)) {
-			masters.value.ports.push(res.name);
-		}
-		form[field] = res.name;
-		toast.success(`${doctype} “${res.name}” added`);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not add");
-	}
-}
-
-async function save() {
-	if (!form.direction) {
-		toast.warning("Direction is required");
-		return;
-	}
-	saving.value = true;
-	try {
-		const res = await call<{ name: string }>("bwm_logistics.api.containers.save_container", {
-			payload: {
-				...form,
-				free_days: form.free_days ? Number(form.free_days) : null,
-				branch: branch.filter,
-			},
-		});
-		toast.success("Container created");
-		dialogOpen.value = false;
-		router.push(`/containers/${res.name}`);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not save container");
-	} finally {
-		saving.value = false;
-	}
-}
 </script>
 
 <template>
 	<div class="mx-auto max-w-6xl">
 		<PageHeader title="Containers">
 			<template v-if="canCreate" #actions>
-				<Button @click="openDialog"><Plus class="h-4 w-4" aria-hidden="true" /> New container</Button>
+				<Button @click="router.push('/containers/new')">
+					<Plus class="h-4 w-4" aria-hidden="true" /> New container
+				</Button>
 			</template>
 		</PageHeader>
 
@@ -223,6 +154,7 @@ async function save() {
 			:loading="loading"
 			:total="total"
 			clickable
+			:row-tone="(r) => ((r as Row).at_risk ? 'danger' : null)"
 			empty-text="No containers yet — create the first one."
 			@row-click="(r) => router.push(`/containers/${r.name}`)"
 			@load-more="load(true)"
@@ -233,98 +165,26 @@ async function save() {
 					<div class="text-xs font-normal text-muted-foreground">{{ row.name }}</div>
 				</div>
 			</template>
-			<template #cell-direction="{ value }"><DirectionBadge :direction="String(value)" /></template>
-			<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
+			<template #cell-route="{ row }">
+				<span v-if="route(row as Row)" class="truncate">{{ route(row as Row) }}</span>
+				<DirectionBadge v-else :direction="String(row.direction)" />
+			</template>
+			<!-- Demurrage is the one thing worth interrupting a scan for.
+			     The empty <span> matters: a scoped slot that renders only a
+			     false v-if counts as empty, and DataTable would fall back to
+			     printing an em-dash for every healthy container. -->
+			<template #cell-risk="{ row }">
+				<Badge v-if="row.at_risk" tone="danger" dot>
+					{{ (row.days_left as number) > 0 ? `${row.days_left}d to demurrage` : "Demurrage running" }}
+				</Badge>
+				<span v-else />
+			</template>
+			<template #cell-status="{ row }"><StatusBadge :status="String(row.status)" /></template>
 			<template #cell-current_milestone="{ value }">
-				<span
-					v-if="value === 'Delayed'"
-					class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-700 ring-1 ring-red-200"
-				>
-					Delayed
-				</span>
+				<Badge v-if="value === 'Delayed'" tone="danger">Delayed</Badge>
 				<span v-else :class="!value && 'text-gray-400'">{{ value || "No milestones yet" }}</span>
 			</template>
 			<template #cell-eta="{ value }">{{ fmtDate(value as string) }}</template>
 		</DataTable>
-
-		<!-- ── New container ─────────────────────────────────────────────── -->
-		<Dialog v-model:open="dialogOpen" title="New container" size="wide">
-			<div class="grid gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5">
-					<Label required>Direction</Label>
-					<Select v-model="form.direction" :options="['Import', 'Export']" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Container No</Label>
-					<Input v-model="form.container_no" placeholder="MSCU1234567" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Type</Label>
-					<Select v-model="form.container_type" :options="masters.container_types" placeholder="Select type" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Shipping line</Label>
-					<SearchCombo
-						v-model="form.shipping_line"
-						:fetcher="fetchLines"
-						value-key="name"
-						label-key="name"
-						placeholder="Search shipping line…"
-						create-label="Add line"
-						@create="(q) => quickAdd('Shipping Line', 'shipping_line', q)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Vessel</Label>
-					<Input v-model="form.vessel" placeholder="Vessel name" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Master BL No</Label>
-					<Input v-model="form.bl_no" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Port of loading</Label>
-					<SearchCombo
-						v-model="form.port_of_loading"
-						:fetcher="fetchPorts"
-						value-key="name"
-						label-key="name"
-						placeholder="Search port…"
-						create-label="Add port"
-						@create="(q) => quickAdd('Port', 'port_of_loading', q)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Port of discharge</Label>
-					<SearchCombo
-						v-model="form.port_of_discharge"
-						:fetcher="fetchPorts"
-						value-key="name"
-						label-key="name"
-						placeholder="Search port…"
-						create-label="Add port"
-						@create="(q) => quickAdd('Port', 'port_of_discharge', q)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>ETD</Label>
-					<Input v-model="form.etd" type="date" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>ETA</Label>
-					<Input v-model="form.eta" type="date" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Free days</Label>
-					<Input v-model="form.free_days" type="number" min="0" />
-				</div>
-			</div>
-			<template #footer>
-				<div class="flex justify-end gap-2">
-					<Button variant="outline" @click="dialogOpen = false">Cancel</Button>
-					<Button :loading="saving" @click="save">Create container</Button>
-				</div>
-			</template>
-		</Dialog>
 	</div>
 </template>

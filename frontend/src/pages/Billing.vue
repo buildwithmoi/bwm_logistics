@@ -10,7 +10,6 @@ import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
-import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -34,41 +33,6 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 const tab = ref<TabKey>((route.query.tab as TabKey) || "sales");
 watch(tab, (t) => router.replace({ query: { ...route.query, tab: t } }));
-
-// ── shared link-field fetchers ──────────────────────────────────────────────
-interface CustomerHit extends Record<string, unknown> {
-	name: string;
-	customer_name: string;
-	mobile_no?: string;
-}
-async function fetchCustomers(q: string): Promise<CustomerHit[]> {
-	const res = await call<{ rows: CustomerHit[] }>("bwm_logistics.api.customers.list_customers", {
-		search: q || null,
-		limit: 20,
-	});
-	return res.rows;
-}
-interface ShipmentHit extends Record<string, unknown> {
-	name: string;
-	sub: string;
-}
-async function fetchShipments(q: string): Promise<ShipmentHit[]> {
-	const res = await call<{ rows: Array<{ name: string; customer_name?: string; shipment_type?: string; destination?: string }> }>(
-		"bwm_logistics.api.shipments.list_shipments",
-		{ search: q || null, limit: 20 },
-	);
-	return res.rows.map((s) => ({
-		name: s.name,
-		sub: s.shipment_type === "Own Goods (Trading)" ? `Own goods · ${s.destination || ""}` : s.customer_name || "",
-	}));
-}
-interface SupplierHit extends Record<string, unknown> {
-	name: string;
-	supplier_name: string;
-}
-async function fetchSuppliers(q: string): Promise<SupplierHit[]> {
-	return call<SupplierHit[]>("bwm_logistics.api.purchasing.list_suppliers", { search: q || null });
-}
 
 // ═══════════════════════════ SALES ══════════════════════════════════════════
 interface Overview {
@@ -152,62 +116,8 @@ async function makeInvoice(shipment: string) {
 	}
 }
 
-// ── New (free-form) invoice ─────────────────────────────────────────────────
-interface SaleLine {
-	description: string;
-	qty: number;
-	rate: number | null;
-}
-const newInvOpen = ref(false);
-const newInvSaving = ref(false);
-const newInv = reactive({
-	customer: "" as string | null,
-	shipment: "" as string | null,
-	due_date: "",
-	lines: [{ description: "", qty: 1, rate: null }] as SaleLine[],
-});
-const newInvCustomerDisplay = ref<string | null>(null);
-function openNewInvoice(shipment?: string) {
-	Object.assign(newInv, {
-		customer: "",
-		shipment: shipment || "",
-		due_date: "",
-		lines: [{ description: "", qty: 1, rate: null }],
-	});
-	newInvCustomerDisplay.value = null;
-	newInvOpen.value = true;
-}
-async function saveNewInvoice() {
-	if (!newInv.customer) {
-		toast.warning("Pick a customer");
-		return;
-	}
-	if (!newInv.lines.some((l) => l.description && l.rate)) {
-		toast.warning("Add at least one line with a rate");
-		return;
-	}
-	newInvSaving.value = true;
-	try {
-		const res = await call<{ sales_invoice: string; grand_total: number }>(
-			"bwm_logistics.api.billing.new_invoice",
-			{
-				payload: {
-					customer: newInv.customer,
-					shipment: newInv.shipment || null,
-					due_date: newInv.due_date || null,
-					lines: newInv.lines.filter((l) => l.description && l.rate),
-				},
-			},
-		);
-		toast.success(`Invoice ${res.sales_invoice} — ${fmtMoney(res.grand_total)}`);
-		newInvOpen.value = false;
-		await Promise.all([loadOverview(), loadInvoices()]);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not create invoice");
-	} finally {
-		newInvSaving.value = false;
-	}
-}
+// New invoices are created on their own page (/billing/invoice/new) — a
+// dialog couldn't hold the line-item table on a phone.
 
 // ── record customer payment ─────────────────────────────────────────────────
 interface InvoiceRow extends Record<string, unknown> {
@@ -317,81 +227,7 @@ const purchaseColumns: Column[] = [
 	{ key: "pactions", label: "", class: "w-32", trailing: true },
 ];
 
-// ── record purchase ─────────────────────────────────────────────────────────
-interface CostLine {
-	description: string;
-	amount: number | null;
-}
-const purchOpen = ref(false);
-const purchSaving = ref(false);
-const purchForm = reactive({
-	supplier: "" as string | null,
-	shipment: "" as string | null,
-	posting_date: new Date().toISOString().slice(0, 10),
-	reference: "",
-	lines: [{ description: "", amount: null }] as CostLine[],
-});
-const supplierDisplay = ref<string | null>(null);
-
-function openPurchase(shipment?: string) {
-	Object.assign(purchForm, {
-		supplier: "",
-		shipment: shipment || "",
-		posting_date: new Date().toISOString().slice(0, 10),
-		reference: "",
-		lines: [
-			{ description: "Goods", amount: null },
-			{ description: "Duties & taxes", amount: null },
-		],
-	});
-	supplierDisplay.value = null;
-	purchOpen.value = true;
-}
-async function createSupplier(name: string) {
-	if (!name) return;
-	try {
-		const res = await call<{ name: string }>("bwm_logistics.api.purchasing.create_supplier", {
-			supplier_name: name,
-		});
-		purchForm.supplier = res.name;
-		supplierDisplay.value = name;
-		toast.success(`Supplier “${name}” added`);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not add supplier");
-	}
-}
-async function savePurchase() {
-	if (!purchForm.supplier) {
-		toast.warning("Pick a supplier");
-		return;
-	}
-	if (!purchForm.lines.some((l) => l.description && l.amount)) {
-		toast.warning("Add at least one cost line with an amount");
-		return;
-	}
-	purchSaving.value = true;
-	try {
-		const res = await call<{ purchase_invoice: string; grand_total: number }>(
-			"bwm_logistics.api.purchasing.record_purchase",
-			{
-				payload: {
-					supplier: purchForm.supplier,
-					shipment: purchForm.shipment || null,
-					posting_date: purchForm.posting_date,
-					reference: purchForm.reference || null,
-					lines: purchForm.lines.filter((l) => l.description && l.amount),
-				},
-			},
-		);
-		toast.success(`Purchase ${res.purchase_invoice} — ${fmtMoney(res.grand_total)}`);
-		purchOpen.value = false;
-		await loadPurchases();
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not record purchase");
-	} finally {
-		purchSaving.value = false;
-	}
-}
+// Purchases likewise get a page (/billing/purchase/new).
 
 // ── pay supplier ────────────────────────────────────────────────────────────
 interface PurchaseRow extends Record<string, unknown> {
@@ -495,17 +331,21 @@ async function deleteCard(card: RateCard) {
 
 // ── boot + deep links (?tab=&shipment=&new=1) ───────────────────────────────
 onMounted(() => {
+	// `?new=1` used to pop a dialog here; the create screens are pages now, so
+	// the old links (and any bookmarks) forward to them, carrying the shipment.
+	if (route.query.new === "1") {
+		const shipment = route.query.shipment as string | undefined;
+		router.replace({
+			path: tab.value === "purchases" ? "/billing/purchase/new" : "/billing/invoice/new",
+			query: shipment ? { shipment } : {},
+		});
+		return;
+	}
 	loadOverview();
 	loadInvoices();
 	loadRateCards();
 	loadModes();
 	if (tab.value === "purchases") loadPurchases();
-	const shipment = route.query.shipment as string | undefined;
-	if (route.query.new === "1") {
-		if (tab.value === "purchases") openPurchase(shipment);
-		else openNewInvoice(shipment);
-		router.replace({ query: { tab: tab.value } });
-	}
 });
 </script>
 
@@ -513,8 +353,12 @@ onMounted(() => {
 	<div class="mx-auto max-w-6xl">
 		<PageHeader title="Billing" subtitle="Sales, purchases, and your rate cards.">
 			<template v-if="canBill" #actions>
-				<Button v-if="tab === 'purchases'" @click="openPurchase()"><ShoppingCart class="h-4 w-4" aria-hidden="true" /> Record purchase</Button>
-				<Button v-else-if="tab === 'sales'" @click="openNewInvoice()"><Plus class="h-4 w-4" aria-hidden="true" /> New invoice</Button>
+				<Button v-if="tab === 'purchases'" @click="router.push('/billing/purchase/new')">
+					<ShoppingCart class="h-4 w-4" aria-hidden="true" /> Record purchase
+				</Button>
+				<Button v-else-if="tab === 'sales'" @click="router.push('/billing/invoice/new')">
+					<Plus class="h-4 w-4" aria-hidden="true" /> New invoice
+				</Button>
 				<Button v-else variant="outline" @click="openCard()"><Plus class="h-4 w-4" aria-hidden="true" /> New rate card</Button>
 			</template>
 		</PageHeader>
@@ -715,7 +559,7 @@ onMounted(() => {
 			<div v-if="!rateCards.length" class="rounded-2xl bg-white p-10 text-center text-sm text-muted-foreground ring-1 ring-gray-100">
 				No rate cards yet — define your pricing once, then apply it to any shipment with one click.
 			</div>
-			<div v-else class="grid gap-4 sm:grid-cols-2">
+			<div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div v-for="c in rateCards" :key="c.name" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-5">
 					<div class="mb-3 flex items-start justify-between gap-2">
 						<div class="min-w-0">
@@ -748,137 +592,7 @@ onMounted(() => {
 		</template>
 
 		<!-- ══ New invoice dialog ══ -->
-		<Dialog v-model:open="newInvOpen" title="New invoice" size="wide">
-			<div class="grid gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5">
-					<Label required>Customer</Label>
-					<SearchCombo
-						v-model="newInv.customer"
-						v-model:display-value="newInvCustomerDisplay"
-						:fetcher="fetchCustomers"
-						value-key="name"
-						label-key="customer_name"
-						sublabel-key="mobile_no"
-						placeholder="Search customer…"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Tag to shipment (for P&L)</Label>
-					<SearchCombo
-						v-model="newInv.shipment"
-						:fetcher="fetchShipments"
-						value-key="name"
-						label-key="name"
-						sublabel-key="sub"
-						placeholder="Optional — search shipment…"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Due date</Label>
-					<Input v-model="newInv.due_date" type="date" />
-				</div>
-			</div>
-			<div class="mt-5">
-				<div class="mb-2 flex items-center justify-between">
-					<Label required>Lines</Label>
-					<button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="newInv.lines.push({ description: '', qty: 1, rate: null })">+ Add line</button>
-				</div>
-				<div class="space-y-2">
-					<div v-for="(l, i) in newInv.lines" :key="i" class="flex items-center gap-2">
-						<Input v-model="l.description" placeholder="Description (e.g. Chicken wings — carton)" class="flex-1" />
-						<Input v-model.number="l.qty" type="number" min="0.01" step="0.01" placeholder="Qty" class="w-24" />
-						<Input v-model.number="l.rate" type="number" min="0" step="0.01" placeholder="Rate" class="w-28" />
-						<span class="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
-							{{ l.qty && l.rate ? fmtMoney(l.qty * l.rate) : "—" }}
-						</span>
-						<button
-							type="button"
-							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
-							:disabled="newInv.lines.length === 1"
-							@click="newInv.lines.splice(i, 1)"
-						>
-							<Trash2 class="h-4 w-4" />
-						</button>
-					</div>
-				</div>
-				<div class="mt-3 flex justify-end border-t border-gray-100 pt-3 text-sm font-semibold tabular-nums">
-					Total: {{ fmtMoney(newInv.lines.reduce((n, l) => n + (l.qty && l.rate ? l.qty * l.rate : 0), 0)) }}
-				</div>
-			</div>
-			<template #footer>
-				<div class="flex justify-end gap-2">
-					<Button variant="outline" @click="newInvOpen = false">Cancel</Button>
-					<Button :loading="newInvSaving" @click="saveNewInvoice">Create invoice</Button>
-				</div>
-			</template>
-		</Dialog>
 
-		<!-- ══ Record purchase dialog ══ -->
-		<Dialog v-model:open="purchOpen" title="Record purchase" size="wide">
-			<div class="grid gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5">
-					<Label required>Supplier</Label>
-					<SearchCombo
-						v-model="purchForm.supplier"
-						v-model:display-value="supplierDisplay"
-						:fetcher="fetchSuppliers"
-						value-key="name"
-						label-key="supplier_name"
-						placeholder="Search supplier…"
-						create-label="Add supplier"
-						@create="createSupplier"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Tag to shipment (for P&L)</Label>
-					<SearchCombo
-						v-model="purchForm.shipment"
-						:fetcher="fetchShipments"
-						value-key="name"
-						label-key="name"
-						sublabel-key="sub"
-						placeholder="Optional — search shipment…"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label required>Date</Label>
-					<Input v-model="purchForm.posting_date" type="date" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Supplier bill no</Label>
-					<Input v-model="purchForm.reference" placeholder="Their invoice/reference" />
-				</div>
-			</div>
-			<div class="mt-5">
-				<div class="mb-2 flex items-center justify-between">
-					<Label required>Cost lines</Label>
-					<button type="button" class="text-xs font-medium text-brand-700 hover:underline" @click="purchForm.lines.push({ description: '', amount: null })">+ Add cost</button>
-				</div>
-				<div class="space-y-2">
-					<div v-for="(l, i) in purchForm.lines" :key="i" class="flex items-center gap-2">
-						<Input v-model="l.description" placeholder="Cost (e.g. Import duty, Clearing, Goods)" class="flex-1" />
-						<Input v-model.number="l.amount" type="number" min="0" step="0.01" placeholder="Amount" class="w-32" />
-						<button
-							type="button"
-							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
-							:disabled="purchForm.lines.length === 1"
-							@click="purchForm.lines.splice(i, 1)"
-						>
-							<Trash2 class="h-4 w-4" />
-						</button>
-					</div>
-				</div>
-				<div class="mt-3 flex justify-end border-t border-gray-100 pt-3 text-sm font-semibold tabular-nums">
-					Total: {{ fmtMoney(purchForm.lines.reduce((n, l) => n + (l.amount || 0), 0)) }}
-				</div>
-			</div>
-			<template #footer>
-				<div class="flex justify-end gap-2">
-					<Button variant="outline" @click="purchOpen = false">Cancel</Button>
-					<Button :loading="purchSaving" @click="savePurchase">Record purchase</Button>
-				</div>
-			</template>
-		</Dialog>
 
 		<!-- ══ Record customer payment ══ -->
 		<Dialog :open="!!payFor" title="Record payment" @update:open="payFor = null">
@@ -946,7 +660,7 @@ onMounted(() => {
 
 		<!-- ══ Rate card editor ══ -->
 		<Dialog v-model:open="cardOpen" :title="cardForm.name ? 'Edit rate card' : 'New rate card'" size="wide">
-			<div class="grid gap-4 sm:grid-cols-3">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<div class="space-y-1.5 sm:col-span-2">
 					<Label required>Name</Label>
 					<Input v-model="cardForm.card_name" placeholder="e.g. Standard Import Rates" />
@@ -974,19 +688,27 @@ onMounted(() => {
 						@click="cardForm.items.push({ charge_type: '', calc_basis: 'Flat', rate: null })"
 					>+ Add charge</button>
 				</div>
-				<div class="space-y-2">
-					<div v-for="(i, idx) in cardForm.items" :key="idx" class="flex items-center gap-2">
-						<Input v-model="i.charge_type" placeholder="Charge (e.g. Freight)" class="flex-1" />
-						<Select v-model="i.calc_basis" :options="['Flat', 'Per KG', 'Per CBM', 'Per Package']" class="w-36" />
-						<Input v-model.number="i.rate" type="number" min="0" step="0.01" placeholder="Rate" class="w-28" />
-						<Input v-model.number="i.minimum" type="number" min="0" step="0.01" placeholder="Min" class="w-24" />
+				<div class="space-y-3">
+					<div
+						v-for="(i, idx) in cardForm.items"
+						:key="idx"
+						class="rounded-xl border border-border p-3 sm:flex sm:items-center sm:gap-2 sm:border-0 sm:p-0"
+					>
+						<Input v-model="i.charge_type" placeholder="Charge (e.g. Freight)" class="sm:min-w-0 sm:flex-1" />
+						<div class="mt-2 grid grid-cols-3 gap-2 sm:mt-0 sm:flex sm:items-center">
+							<Select v-model="i.calc_basis" :options="['Flat', 'Per KG', 'Per CBM', 'Per Package']" class="sm:w-36" />
+							<Input v-model.number="i.rate" type="number" min="0" step="0.01" placeholder="Rate" class="sm:w-28" />
+							<Input v-model.number="i.minimum" type="number" min="0" step="0.01" placeholder="Min" class="sm:w-24" />
+						</div>
 						<button
 							type="button"
-							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
+							class="mt-2 flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg text-[13px] text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 sm:mt-0 sm:w-9 sm:text-transparent"
 							:disabled="cardForm.items.length === 1"
+							:aria-label="`Remove charge ${idx + 1}`"
 							@click="cardForm.items.splice(idx, 1)"
 						>
-							<Trash2 class="h-4 w-4" />
+							<Trash2 class="h-4 w-4 text-gray-400" aria-hidden="true" />
+							<span class="sm:hidden">Remove</span>
 						</button>
 					</div>
 				</div>

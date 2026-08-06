@@ -32,7 +32,22 @@ const props = defineProps<{
 	total?: number;
 	rowKey?: string;
 	clickable?: boolean;
+	/**
+	 * Optional per-row accent, drawn as a coloured left edge. Reserved for
+	 * "this one needs attention" — a list where every row is accented is a list
+	 * with no signal in it.
+	 */
+	rowTone?: (row: Record<string, unknown>) => "danger" | "warning" | null;
 }>();
+
+const ACCENTS = {
+	danger: "border-l-4 border-l-red-500",
+	warning: "border-l-4 border-l-amber-400",
+} as const;
+const accent = (row: Record<string, unknown>) => {
+	const tone = props.rowTone?.(row);
+	return tone ? ACCENTS[tone] : "";
+};
 const emit = defineEmits<{
 	(e: "row-click", row: Record<string, unknown>): void;
 	(e: "load-more"): void;
@@ -79,7 +94,7 @@ const rowId = (row: Record<string, unknown>) => String(row[props.rowKey || "name
 						v-for="row in rows"
 						:key="rowId(row)"
 						class="border-b border-border/60 transition-colors last:border-0 hover:bg-gray-50/80"
-						:class="clickable && 'cursor-pointer'"
+						:class="[clickable && 'cursor-pointer', accent(row)]"
 						@click="clickable && emit('row-click', row)"
 					>
 						<td
@@ -112,7 +127,7 @@ const rowId = (row: Record<string, unknown>) => String(row[props.rowKey || "name
 				:key="rowId(row)"
 				:type="clickable ? 'button' : undefined"
 				class="block w-full border-b border-border/60 px-4 py-3.5 text-left last:border-0"
-				:class="clickable && 'touch-manipulation transition-colors active:bg-gray-50'"
+				:class="[clickable && 'touch-manipulation transition-colors active:bg-gray-50', accent(row)]"
 				@click="clickable && emit('row-click', row)"
 			>
 				<div class="flex items-start justify-between gap-3">

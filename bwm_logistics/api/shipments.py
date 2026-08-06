@@ -100,7 +100,27 @@ def get_shipment(name):
 			"Container", doc.container,
 			["name", "container_no", "status", "current_milestone", "eta", "vessel"], as_dict=True,
 		)
+	# The milestones an operator may move this shipment to, and the status each
+	# one lands it on. The UI used to ask them to *type* a milestone, which is
+	# why "how do I change the status?" had no answer — you can't guess a free
+	# text value that happens to be in MILESTONE_STATUS.
+	out["milestone_options"] = milestone_options()
 	return out
+
+
+@frappe.whitelist()
+def milestone_options() -> list[dict]:
+	"""Milestone → resulting status, in the order a shipment moves through them.
+
+	`Delayed` is offered last and deliberately carries no status: it flags the
+	current milestone without disturbing where the shipment actually is.
+	"""
+	require(*ANY_STAFF)
+	from bwm_logistics.bwm_logistics.doctype.shipment.shipment import MILESTONE_STATUS
+
+	options = [{"milestone": m, "status": s} for m, s in MILESTONE_STATUS.items()]
+	options.append({"milestone": "Delayed", "status": None})
+	return options
 
 
 @frappe.whitelist()

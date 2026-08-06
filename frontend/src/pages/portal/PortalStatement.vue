@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { RouterLink } from "vue-router";
-import { ArrowLeft, Printer } from "lucide-vue-next";
+
+import { Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
 import Input from "@/components/ui/Input.vue";
 import StatementView, { type StatementData } from "@/components/StatementView.vue";
 
@@ -38,19 +39,16 @@ onMounted(load);
 
 <template>
 	<div class="mx-auto max-w-3xl">
-		<header class="mb-5 flex flex-wrap items-center gap-3 print:hidden">
-			<RouterLink
-				to="/portal/invoices"
-				class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-			>
-				<ArrowLeft class="h-4 w-4" />
-			</RouterLink>
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">My Statement</h1>
-			<Input v-model="fromDate" type="date" class="w-40" />
-			<Input v-model="toDate" type="date" class="w-40" />
-			<Button variant="outline" @click="load">Update</Button>
-			<Button @click="printStatement"><Printer class="h-4 w-4" /> Print</Button>
-		</header>
+		<div class="print:hidden">
+			<DetailHeader title="My Statement" back-to="/portal/invoices" back-label="Invoices">
+				<template #actions>
+				<Input v-model="fromDate" type="date" class="w-36 sm:w-40" aria-label="From date" />
+					<Input v-model="toDate" type="date" class="w-36 sm:w-40" aria-label="To date" />
+					<Button variant="outline" @click="load">Update</Button>
+					<Button @click="printStatement"><Printer class="h-4 w-4" aria-hidden="true" /> Print</Button>
+				</template>
+			</DetailHeader>
+		</div>
 
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<StatementView v-else-if="data" :data="data" />

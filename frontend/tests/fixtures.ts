@@ -112,16 +112,9 @@ const SHIPMENTS = [
 	},
 ];
 
+// Soonest ETA first, and the two needing attention carry demurrage state — the
+// list is meant to read top-down as a worklist.
 const CONTAINERS = [
-	{
-		name: "CON-0031",
-		container_no: "MSKU-778812-3",
-		direction: "Import",
-		status: "Active",
-		current_milestone: "Vessel departed",
-		eta: "2026-08-14",
-		shipment_count: 12,
-	},
 	{
 		name: "CON-0030",
 		container_no: "TCLU-990021-8",
@@ -130,6 +123,23 @@ const CONTAINERS = [
 		current_milestone: "Arrived",
 		eta: "2026-08-07",
 		shipment_count: 31,
+		port_of_loading: "Shanghai",
+		port_of_discharge: "Tema",
+		at_risk: true,
+		days_left: -2,
+	},
+	{
+		name: "CON-0031",
+		container_no: "MSKU-778812-3",
+		direction: "Import",
+		status: "Active",
+		current_milestone: "Vessel departed",
+		eta: "2026-08-14",
+		shipment_count: 12,
+		port_of_loading: "Ningbo",
+		port_of_discharge: "Tema",
+		at_risk: true,
+		days_left: 2,
 	},
 	{
 		name: "CON-0029",
@@ -137,8 +147,12 @@ const CONTAINERS = [
 		direction: "Export",
 		status: "Completed",
 		current_milestone: "Delivered",
-		eta: "2026-07-28",
+		eta: "2026-08-28",
 		shipment_count: 4,
+		port_of_loading: "Takoradi",
+		port_of_discharge: "Rotterdam",
+		at_risk: false,
+		days_left: null,
 	},
 ];
 

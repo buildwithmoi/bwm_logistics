@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Printer, CheckCircle2 } from "lucide-vue-next";
+import { useRoute, useRouter } from "vue-router";
+import { Printer, CheckCircle2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
 
 // Branded payment receipt — printed/handed to the customer after a payment
 // is recorded (or reprinted any time from Billing).
@@ -49,16 +50,13 @@ onMounted(async () => {
 
 <template>
 	<div class="mx-auto max-w-lg">
-		<header class="mb-5 flex items-center gap-3 print:hidden">
-			<RouterLink
-				to="/billing"
-				class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-			>
-				<ArrowLeft class="h-4 w-4" />
-			</RouterLink>
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Receipt</h1>
-			<Button @click="printReceipt"><Printer class="h-4 w-4" /> Print</Button>
-		</header>
+		<div class="print:hidden">
+			<DetailHeader title="Receipt" back-to="/billing" back-label="Billing">
+				<template #actions>
+				<Button @click="printReceipt"><Printer class="h-4 w-4" aria-hidden="true" /> Print</Button>
+				</template>
+			</DetailHeader>
+		</div>
 
 		<div v-if="data" class="rounded-2xl bg-white p-5 ring-1 ring-gray-100 sm:p-8 print:rounded-none print:ring-0">
 			<!-- Letterhead -->

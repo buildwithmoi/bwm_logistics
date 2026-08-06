@@ -295,7 +295,7 @@ async function copyWebhook() {
 				<!-- Branding -->
 				<section v-if="section === 'branding'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Branding</h2>
-					<div class="grid gap-4 sm:grid-cols-2">
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
 							<Label>Business name</Label>
 							<Input v-model="form.business_name" :disabled="!canEdit" placeholder="BWM Logistics" />
@@ -321,7 +321,7 @@ async function copyWebhook() {
 							<Label>Hero subtitle</Label>
 							<Textarea v-model="form.hero_subtitle" :rows="2" :disabled="!canEdit" />
 						</div>
-						<div class="grid gap-4 sm:grid-cols-3">
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 							<div class="space-y-1.5">
 								<Label>Phone</Label>
 								<Input v-model="form.contact_phone" :disabled="!canEdit" />
@@ -341,7 +341,7 @@ async function copyWebhook() {
 				<!-- Carrier tracking -->
 				<section v-else-if="section === 'tracking'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Carrier auto-tracking</h2>
-					<div class="grid gap-4 sm:grid-cols-2">
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
 							<Label>Provider</Label>
 							<Select
@@ -416,7 +416,7 @@ async function copyWebhook() {
 							</p>
 						</div>
 					</div>
-					<div class="mt-4 grid gap-4 sm:grid-cols-2">
+					<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
 							<Label>WhatsApp gateway URL</Label>
 							<Input v-model="form.whatsapp_gateway_url" :disabled="!canEdit" placeholder="https://gateway.example.com/send" />

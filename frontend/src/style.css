@@ -110,6 +110,17 @@
 	label {
 		touch-action: manipulation;
 	}
+
+	/* Form controls carry an intrinsic width — an <input> is about 20 characters
+	   wide before any CSS applies. Inside a grid or flex track that width becomes
+	   a min-content floor the field cannot shrink below, so a two-column form
+	   quietly overflows a phone even though every control says w-full. Ours are
+	   all sized by their container, so drop the floor. */
+	input,
+	select,
+	textarea {
+		min-width: 0;
+	}
 	@media (prefers-reduced-motion: reduce) {
 		*,
 		*::before,

@@ -39,7 +39,9 @@ function fmt(v: number): string {
 </script>
 
 <template>
-	<div>
+	<!-- min-w-0 so the chart's 480px floor scrolls inside the wrapper below
+	     instead of stretching whatever grid or flex track holds this chart. -->
+	<div class="min-w-0">
 		<div class="mb-3 flex gap-4 text-xs text-muted-foreground">
 			<span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-[#b8860b]"></span> {{ seriesA }}</span>
 			<span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-slate-400"></span> {{ seriesB }}</span>

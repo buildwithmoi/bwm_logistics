@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Printer } from "lucide-vue-next";
+import { useRoute, useRouter } from "vue-router";
+import { Printer } from "lucide-vue-next";
 import qrcode from "qrcode-generator";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
 
 // Printable package labels (FR-CON-5): one label per package with a QR of
 // the tracking number. Browser print → thermal/A4; @media print CSS strips
@@ -66,18 +67,15 @@ onMounted(async () => {
 
 <template>
 	<div class="mx-auto max-w-3xl">
-		<header class="mb-5 flex items-center gap-3 print:hidden">
-			<RouterLink
-				:to="`/shipments/${name}`"
-				class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-			>
-				<ArrowLeft class="h-4 w-4" />
-			</RouterLink>
-			<h1 class="min-w-0 flex-1 text-2xl font-semibold tracking-tight">Labels — {{ name }}</h1>
-			<Button @click="printLabels"><Printer class="h-4 w-4" /> Print</Button>
-		</header>
+		<div class="print:hidden">
+			<DetailHeader :title="`Labels — ${name}`" :back-to="`/shipments/${name}`" back-label="Shipment">
+				<template #actions>
+					<Button @click="printLabels"><Printer class="h-4 w-4" aria-hidden="true" /> Print</Button>
+				</template>
+			</DetailHeader>
+		</div>
 
-		<div v-if="data" class="grid gap-4 sm:grid-cols-2 print:block">
+		<div v-if="data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 print:block">
 			<div
 				v-for="l in labels"
 				:key="l.index"

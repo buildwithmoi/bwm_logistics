@@ -10,7 +10,6 @@ import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
-import SearchCombo from "@/components/ui/SearchCombo.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import DataTable, { type Column } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -86,70 +85,9 @@ async function loadAssignable() {
 	}
 }
 
-// ── new run dialog ──────────────────────────────────────────────────────────
-const runOpen = ref(false);
-const saving = ref(false);
-const form = reactive({
-	driver: "" as string | null,
-	vehicle: "" as string | null,
-	run_date: new Date().toISOString().slice(0, 10),
-	shipments: new Set<string>(),
-	pickups: new Set<string>(),
-});
-const driverDisplay = ref<string | null>(null);
-
-// Link-field fetchers — client-side filter over the assignable pools.
-type DriverHit = Record<string, unknown> & { name: string; full_name: string; cell_number?: string };
-async function fetchDrivers(q: string): Promise<DriverHit[]> {
-	return assignable.value.drivers
-		.filter((d) => d.full_name.toLowerCase().includes(q.toLowerCase()))
-		.slice(0, 20) as DriverHit[];
-}
-type VehicleHit = Record<string, unknown> & { name: string };
-async function fetchVehicles(q: string): Promise<VehicleHit[]> {
-	return assignable.value.vehicles
-		.filter((v) => v.name.toLowerCase().includes(q.toLowerCase()))
-		.slice(0, 20) as VehicleHit[];
-}
-function toggle(set: Set<string>, name: string) {
-	set.has(name) ? set.delete(name) : set.add(name);
-}
-
-async function saveRun() {
-	if (!form.driver) {
-		toast.warning("Pick a driver");
-		return;
-	}
-	if (!form.shipments.size && !form.pickups.size) {
-		toast.warning("Add at least one stop");
-		return;
-	}
-	saving.value = true;
-	try {
-		const stops = [
-			...[...form.shipments].map((s) => ({ stop_type: "Delivery", shipment: s })),
-			...[...form.pickups].map((p) => ({ stop_type: "Pickup", pickup_request: p })),
-		];
-		const res = await call<{ name: string }>("bwm_logistics.api.dispatch.save_run", {
-			payload: {
-				driver: form.driver,
-				vehicle: form.vehicle || null,
-				run_date: form.run_date,
-				branch: branch.filter,
-				stops,
-			},
-		});
-		toast.success(`Run ${res.name} scheduled`);
-		runOpen.value = false;
-		form.shipments.clear();
-		form.pickups.clear();
-		router.push(`/dispatch/${res.name}`);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not save run");
-	} finally {
-		saving.value = false;
-	}
-}
+// Scheduling a run is a page (/dispatch/new), not a dialog — picking stops is
+// a browsing job that needs the room. The strip above still shows how many
+// are waiting.
 
 // ── new driver dialog ───────────────────────────────────────────────────────
 const driverOpen = ref(false);
@@ -185,7 +123,7 @@ async function saveDriver() {
 		<PageHeader title="Dispatch" :subtitle="isDispatcher ? undefined : 'Your delivery runs — tap one to work it.'">
 			<template v-if="isDispatcher" #actions>
 				<Button variant="outline" @click="driverOpen = true"><UserPlus class="h-4 w-4" aria-hidden="true" /> New driver</Button>
-				<Button @click="runOpen = true"><Plus class="h-4 w-4" aria-hidden="true" /> New run</Button>
+				<Button @click="router.push('/dispatch/new')"><Plus class="h-4 w-4" aria-hidden="true" /> New run</Button>
 			</template>
 		</PageHeader>
 
@@ -243,107 +181,6 @@ async function saveDriver() {
 		</DataTable>
 
 		<!-- ── New run ───────────────────────────────────────────────────── -->
-		<Dialog v-model:open="runOpen" title="New delivery run" size="xl">
-			<div class="grid gap-4 sm:grid-cols-3">
-				<div class="space-y-1.5">
-					<Label required>Driver</Label>
-					<SearchCombo
-						v-model="form.driver"
-						v-model:display-value="driverDisplay"
-						:fetcher="fetchDrivers"
-						value-key="name"
-						label-key="full_name"
-						sublabel-key="cell_number"
-						placeholder="Search driver…"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Vehicle</Label>
-					<SearchCombo
-						v-model="form.vehicle"
-						:fetcher="fetchVehicles"
-						value-key="name"
-						label-key="name"
-						placeholder="Search vehicle… (optional)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label required>Date</Label>
-					<Input v-model="form.run_date" type="date" />
-				</div>
-			</div>
-
-			<div class="mt-6 grid gap-6 lg:grid-cols-2">
-				<!-- Deliveries -->
-				<div>
-					<div class="label-caps mb-2">Deliveries — ready shipments</div>
-					<div v-if="!assignable.shipments.length" class="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-muted-foreground">
-						No shipments in "Arrived" or "Ready for Delivery".
-					</div>
-					<div class="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-						<label
-							v-for="s in assignable.shipments"
-							:key="s.name"
-							class="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors"
-							:class="form.shipments.has(s.name) ? 'border-brand-400 bg-brand-50' : 'border-gray-150 hover:bg-gray-50'"
-						>
-							<input
-								type="checkbox"
-								class="mt-0.5 h-4 w-4 rounded accent-[#b8860b]"
-								:checked="form.shipments.has(s.name)"
-								@change="toggle(form.shipments, s.name)"
-							/>
-							<span class="min-w-0 text-sm">
-								<span class="font-medium">{{ s.name }}</span> · {{ s.customer_name }}
-								<span class="block text-xs text-muted-foreground">
-									{{ s.delivery_address || s.destination || "no address" }} · {{ s.total_packages }} pkg
-								</span>
-							</span>
-						</label>
-					</div>
-				</div>
-				<!-- Pickups -->
-				<div>
-					<div class="label-caps mb-2">Pickups — open requests</div>
-					<div v-if="!assignable.pickups.length" class="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-muted-foreground">
-						No open pickup requests.
-					</div>
-					<div class="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-						<label
-							v-for="p in assignable.pickups"
-							:key="p.name"
-							class="flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors"
-							:class="form.pickups.has(p.name) ? 'border-brand-400 bg-brand-50' : 'border-gray-150 hover:bg-gray-50'"
-						>
-							<input
-								type="checkbox"
-								class="mt-0.5 h-4 w-4 rounded accent-[#b8860b]"
-								:checked="form.pickups.has(p.name)"
-								@change="toggle(form.pickups, p.name)"
-							/>
-							<span class="min-w-0 text-sm">
-								<span class="font-medium">{{ p.customer_name }}</span>
-								<span class="block text-xs text-muted-foreground">
-									{{ p.pickup_address }} · {{ fmtDate(p.preferred_date) }} {{ p.time_window }}
-								</span>
-							</span>
-						</label>
-					</div>
-				</div>
-			</div>
-
-			<template #footer>
-				<div class="flex items-center justify-between gap-2">
-					<span class="text-xs text-muted-foreground">
-						{{ form.shipments.size + form.pickups.size }} stop(s) selected
-					</span>
-					<div class="flex gap-2">
-						<Button variant="outline" @click="runOpen = false">Cancel</Button>
-						<Button :loading="saving" @click="saveRun">Schedule run</Button>
-					</div>
-				</div>
-			</template>
-		</Dialog>
 
 		<!-- ── New driver ────────────────────────────────────────────────── -->
 		<Dialog v-model:open="driverOpen" title="New driver">

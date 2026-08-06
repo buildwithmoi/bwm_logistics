@@ -16,12 +16,20 @@ RISK_WINDOW_DAYS = 3
 
 
 def at_risk_containers() -> list[dict]:
+	"""Active containers whose demurrage clock starts within the risk window.
+
+	The `is set` guard is load-bearing: Frappe compiles a date `<=` filter to
+	`IFNULL(col, '') <= '<date>'`, and `''` sorts before any date — so without
+	it every container that has *no* demurrage date at all comes back as at
+	risk, which flagged the whole fleet in the dashboard banner.
+	"""
 	rows = frappe.get_all(
 		"Container",
-		filters={
-			"status": "Active",
-			"demurrage_start_date": ("<=", add_days(nowdate(), RISK_WINDOW_DAYS)),
-		},
+		filters=[
+			["status", "=", "Active"],
+			["demurrage_start_date", "is", "set"],
+			["demurrage_start_date", "<=", add_days(nowdate(), RISK_WINDOW_DAYS)],
+		],
 		fields=["name", "container_no", "demurrage_start_date", "customs_status", "port_of_discharge"],
 		order_by="demurrage_start_date asc",
 	)

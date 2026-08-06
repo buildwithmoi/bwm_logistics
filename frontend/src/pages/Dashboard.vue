@@ -155,19 +155,19 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 			</div>
 
 			<!-- ── Charts row ────────────────────────────────────────────── -->
-			<div class="mt-3 grid gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-2">
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+			<div class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-2">
+				<div class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Revenue — invoiced vs collected (12m)</h2>
 					<BarChart :groups="revenueGroups" series-a="Invoiced" series-b="Collected" :height="180" />
 				</div>
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+				<div class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Shipments — imports vs exports (12m)</h2>
 					<BarChart :groups="shipmentGroups" series-a="Imports" series-b="Exports" :height="180" />
 				</div>
 			</div>
 
 			<!-- ── Lists row ─────────────────────────────────────────────── -->
-			<div class="mt-3 grid gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-3">
+			<div class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-3">
 				<!-- Arriving this week -->
 				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Arriving this week</h2>

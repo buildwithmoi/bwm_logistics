@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { useFixtures } from "./fixtures";
+import { measureOverflow } from "./overflow";
 
 // The same sweep as screenshots.spec.ts, but with lists and tiles full of data
 // (see fixtures.ts — nothing is written to the database). This is the pass that
@@ -34,37 +35,6 @@ async function settle(page: Page) {
 	await page.waitForTimeout(350);
 }
 
-/** Any element whose right edge sits past the viewport — the real culprits. */
-async function overflowers(page: Page, width: number) {
-	return page.evaluate((vw) => {
-		const bad: string[] = [];
-		for (const el of Array.from(
-			document.body.querySelectorAll<HTMLElement>("*"),
-		)) {
-			const r = el.getBoundingClientRect();
-			if (r.width === 0 || r.height === 0) continue;
-			if (r.right > vw + 1 || r.left < -1) {
-				// Ignore anything inside a deliberate horizontal scroller.
-				let p: HTMLElement | null = el.parentElement;
-				let scroller = false;
-				while (p && p !== document.body) {
-					const ov = getComputedStyle(p).overflowX;
-					if (ov === "auto" || ov === "scroll") {
-						scroller = true;
-						break;
-					}
-					p = p.parentElement;
-				}
-				if (scroller) continue;
-				bad.push(
-					`${el.tagName.toLowerCase()}.${el.className.toString().slice(0, 60)} → right ${Math.round(r.right)}`,
-				);
-			}
-		}
-		return bad.slice(0, 8);
-	}, width);
-}
-
 for (const vp of VIEWPORTS) {
 	test.describe(`populated ${vp.name} (${vp.width}px)`, () => {
 		test.use({ viewport: { width: vp.width, height: vp.height } });
@@ -89,19 +59,12 @@ for (const vp of VIEWPORTS) {
 				});
 
 				if (vp.width <= 430) {
-					const doc = await page.evaluate(
-						() =>
-							document.documentElement.scrollWidth -
-							document.documentElement.clientWidth,
-					);
+					const of = await measureOverflow(page);
 					expect(
-						doc,
-						`${route.slug} page scrolls sideways`,
-					).toBeLessThanOrEqual(1);
-					expect(
-						await overflowers(page, vp.width),
-						`${route.slug} content past the fold`,
+						of.offenders,
+						`${route.slug} has content wider than the screen`,
 					).toEqual([]);
+					expect(of.px, `${route.slug} scrolls sideways`).toBeLessThanOrEqual(1);
 				}
 
 				const real = errors.filter(

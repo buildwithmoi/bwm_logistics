@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { ArrowLeft, Package, ReceiptText, CheckCircle2 } from "lucide-vue-next";
+import { ReceiptText, CheckCircle2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
-import { fmtDate, fmtDateTime, fmtMoney, fmtWeight } from "@/lib/format";
+import { fmtDateTime, fmtMoney, fmtWeight } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
+import DetailHeader from "@/components/ui/DetailHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
 
@@ -43,27 +44,16 @@ onMounted(async () => {
 	<div class="mx-auto max-w-4xl">
 		<div v-if="loading" class="py-16 text-center text-sm text-muted-foreground">Loading…</div>
 		<template v-else-if="data">
-			<header class="mb-6 flex flex-wrap items-center gap-3">
-				<RouterLink
-					to="/portal/shipments"
-					class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-				>
-					<ArrowLeft class="h-4 w-4" />
-				</RouterLink>
-				<span class="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600/10 text-brand-700">
-					<Package class="h-5 w-5" />
-				</span>
-				<div class="min-w-0 flex-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<h1 class="text-2xl font-semibold tracking-tight">{{ data.name }}</h1>
-						<StatusBadge :status="data.status" />
-					</div>
-					<p class="text-sm text-muted-foreground">
-						{{ data.direction }} · {{ data.destination || "—" }}
-						<template v-if="data.eta"> · ETA {{ fmtDate(data.eta as string) }}</template>
-					</p>
-				</div>
-			</header>
+			<DetailHeader
+				:title="data.name"
+				back-to="/portal/shipments"
+				back-label="My Shipments"
+				:subtitle="data.destination || undefined"
+			>
+				<template #badges>
+					<StatusBadge :status="data.status" />
+				</template>
+			</DetailHeader>
 
 			<!-- Invoice banner -->
 			<div
@@ -103,7 +93,7 @@ onMounted(async () => {
 				</div>
 			</div>
 
-			<div class="grid gap-4 sm:grid-cols-5">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-5">
 				<!-- Timeline -->
 				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-3">
 					<h2 class="label-caps mb-4">Tracking timeline</h2>

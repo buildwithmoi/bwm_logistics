@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { measureOverflow } from "./overflow";
 
 // UI-audit sweep: every operator + portal route, at the three widths that
 // matter (phone / tablet / desktop). Output lands in tests/__shots__/<width>/
@@ -29,6 +30,12 @@ const ROUTES = [
 	{ slug: "reports", path: "/logistics/reports" },
 	{ slug: "notifications", path: "/logistics/notifications" },
 	{ slug: "settings", path: "/logistics/settings" },
+	// Create screens — pages, not dialogs.
+	{ slug: "new-container", path: "/logistics/containers/new" },
+	{ slug: "new-shipment", path: "/logistics/shipments/new" },
+	{ slug: "new-dispatch-run", path: "/logistics/dispatch/new" },
+	{ slug: "new-invoice", path: "/logistics/billing/invoice/new" },
+	{ slug: "new-purchase", path: "/logistics/billing/purchase/new" },
 	{ slug: "portal-home", path: "/logistics/portal" },
 	{ slug: "portal-shipments", path: "/logistics/portal/shipments" },
 	{ slug: "portal-invoices", path: "/logistics/portal/invoices" },
@@ -43,15 +50,6 @@ async function settle(page: Page) {
 		.waitFor({ state: "detached", timeout: 8000 })
 		.catch(() => {});
 	await page.waitForTimeout(350); // let transitions/charts finish painting
-}
-
-/** How far the document scrolls sideways past the viewport, in CSS px. */
-async function overflowPx(page: Page) {
-	return page.evaluate(
-		() =>
-			document.documentElement.scrollWidth -
-			document.documentElement.clientWidth,
-	);
 }
 
 for (const vp of VIEWPORTS) {
@@ -78,10 +76,12 @@ for (const vp of VIEWPORTS) {
 
 				// Phones are where overflow actually hurts; allow 1px for rounding.
 				if (vp.width <= 430) {
+					const of = await measureOverflow(page);
 					expect(
-						await overflowPx(page),
-						`${route.slug} scrolls sideways`,
-					).toBeLessThanOrEqual(1);
+						of.offenders,
+						`${route.slug} has content wider than the screen`,
+					).toEqual([]);
+					expect(of.px, `${route.slug} scrolls sideways`).toBeLessThanOrEqual(1);
 				}
 
 				const real = errors.filter(

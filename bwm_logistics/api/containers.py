@@ -44,7 +44,13 @@ def list_containers(status=None, direction=None, branch=None, search=None, start
 			"container_type", "shipping_line", "vessel", "eta", "ata", "customs_status",
 			"port_of_loading", "port_of_discharge", "branch", "modified",
 		],
-		order_by="modified desc",
+		# Soonest arrival first, so the list opens on what needs attention today
+		# rather than on whatever record was edited last. MariaDB sorts NULLs
+		# first on ASC, which puts containers with no ETA at the top — that is
+		# wanted: an unscheduled box is an incomplete record, not a finished one.
+		# (Frappe's order_by validator only accepts plain field names, so this
+		# can't be expressed as IFNULL without dropping to the query builder.)
+		order_by="eta asc, modified desc",
 		start=cint(start),
 		limit=min(cint(limit) or 25, 100),
 	)
@@ -62,6 +68,16 @@ def list_containers(status=None, direction=None, branch=None, search=None, start
 		counts = Counter(t.container for t in tagged)
 		for r in rows:
 			r["shipment_count"] = counts.get(r.name, 0)
+
+		# Demurrage risk, flagged on the row an operator would act on rather
+		# than only in the dashboard banner. `days_left` is negative once the
+		# free period has already lapsed and charges are running.
+		from bwm_logistics.alerts import at_risk_containers
+
+		risk = {r["name"]: r["days_left"] for r in at_risk_containers()}
+		for r in rows:
+			r["days_left"] = risk.get(r.name)
+			r["at_risk"] = r.name in risk
 	return {"rows": rows, "total": frappe.db.count("Container", filters or None)}
 
 
