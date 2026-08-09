@@ -747,7 +747,13 @@ async function makeInvoice() {
 								v-for="opt in milestoneOptions"
 								:key="opt.milestone"
 								class="flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors"
-								:class="form.milestone === opt.milestone ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:bg-gray-50'"
+								:class="[
+									form.milestone === opt.milestone
+										? 'border-brand-400 bg-brand-50'
+										: 'border-gray-200 hover:bg-gray-50',
+									// Where it already is, so you can see what you're moving from.
+									opt.milestone === data.current_milestone && form.milestone !== opt.milestone && 'border-gray-300 bg-gray-50',
+								]"
 							>
 								<input
 									v-model="form.milestone"
@@ -756,7 +762,12 @@ async function makeInvoice() {
 									:value="opt.milestone"
 									class="h-4 w-4 shrink-0 accent-[#b8860b]"
 								/>
-								<span class="min-w-0 flex-1 text-sm font-medium">{{ opt.milestone }}</span>
+								<span class="min-w-0 flex-1 text-sm font-medium">
+									{{ opt.milestone }}
+									<span v-if="opt.milestone === data.current_milestone" class="ml-1.5 text-xs font-normal text-muted-foreground">
+										· current
+									</span>
+								</span>
 								<Badge v-if="opt.status" tone="neutral">{{ opt.status }}</Badge>
 								<Badge v-else tone="warning">flag only</Badge>
 							</label>

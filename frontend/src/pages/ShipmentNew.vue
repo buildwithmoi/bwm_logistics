@@ -37,7 +37,7 @@ interface ChargeRow {
 	amount: number | null;
 }
 const form = reactive({
-	shipment_type: "Customer Cargo",
+	shipment_type: "Own Goods (Trading)",
 	customer: "" as string | null,
 	container: "" as string | null,
 	direction: "Import",
@@ -128,7 +128,7 @@ async function save() {
 		<FormSection title="Type">
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 				<button
-					v-for="t in ['Customer Cargo', 'Own Goods (Trading)']"
+					v-for="t in ['Own Goods (Trading)', 'Customer Cargo']"
 					:key="t"
 					type="button"
 					class="rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"

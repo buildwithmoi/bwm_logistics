@@ -255,7 +255,11 @@ const customsRows = computed(() => [
 								v-for="m in milestoneOptions"
 								:key="m"
 								class="flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors"
-								:class="form.milestone === m ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:bg-gray-50'"
+								:class="[
+									form.milestone === m ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:bg-gray-50',
+									// Where it already is, so you can see what you're moving from.
+									m === doc.current_milestone && form.milestone !== m && 'border-gray-300 bg-gray-50',
+								]"
 							>
 								<input
 									v-model="form.milestone"
@@ -264,7 +268,12 @@ const customsRows = computed(() => [
 									:value="m"
 									class="h-4 w-4 shrink-0 accent-[#b8860b]"
 								/>
-								<span class="min-w-0 flex-1 text-sm font-medium">{{ m }}</span>
+								<span class="min-w-0 flex-1 text-sm font-medium">
+									{{ m }}
+									<span v-if="m === doc.current_milestone" class="ml-1.5 text-xs font-normal text-muted-foreground">
+										· current
+									</span>
+								</span>
 							</label>
 						</div>
 					</fieldset>
