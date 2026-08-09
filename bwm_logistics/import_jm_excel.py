@@ -33,7 +33,7 @@ import os
 import frappe
 from frappe.utils import flt, getdate
 
-from bwm_logistics.api.items import ensure_item
+from bwm_logistics.api.items import catalogue_blocker, ensure_item
 from bwm_logistics.bwm_logistics.doctype.shipment.shipment import manifests_for
 
 DEFAULT_FILENAME = "Stock and Distribution 1.xlsx"
@@ -181,6 +181,15 @@ def load(data: dict) -> dict:
 	"""Create the records for a parsed workbook. Safe to re-run."""
 	frappe.set_user("Administrator")
 	frappe.flags.mute_emails = True
+
+	# The manifest points at catalogue Items, which need ERPNext's Item Group
+	# tree and UOM list — both built by the setup wizard, not by install. On a
+	# server that has been provisioned but not set up, defer rather than fail:
+	# normalise_opening_data_to_model_b retries on the next migrate.
+	blocker = catalogue_blocker()
+	if blocker:
+		print(f"Opening import deferred — {blocker}. Re-run after setup:\n  bench --site <site> execute bwm_logistics.import_jm_excel.load_opening")
+		return {"deferred": blocker}
 
 	branch = data.get("branch") or BRANCH
 	if not frappe.db.exists("Branch", branch):

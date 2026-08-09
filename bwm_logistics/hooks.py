@@ -96,7 +96,15 @@ after_install = [
 	"bwm_logistics.install.after_install",
 	"bwm_logistics.install.import_opening_data",
 ]
-after_migrate = ["bwm_logistics.install.after_install"]
+# after_install first (it creates the Item classification field the repair
+# needs), then the sweep that guarantees the opening data is present and in
+# Model B shape. The sweep runs on *every* migrate on purpose: a freshly
+# installed site has its patches marked complete without executing, so a patch
+# alone can never heal a new server. See bwm_logistics/opening_repair.py.
+after_migrate = [
+	"bwm_logistics.install.after_install",
+	"bwm_logistics.opening_repair.run",
+]
 
 # Uninstallation
 # ------------

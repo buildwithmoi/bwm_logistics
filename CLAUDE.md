@@ -99,6 +99,27 @@ match, so re-running after a restore or a data fix is safe. A failed load is
 logged and does **not** block migrate; re-run it with
 `bench --site <site> execute bwm_logistics.import_jm_excel.load_opening`.
 
+**`opening_repair.run()` is the deploy safety net, and it is on `after_migrate`
+rather than only in a patch for a specific reason.**
+`frappe.installer.install_app()` calls `set_all_patches_as_completed()` *before*
+`after_install` runs, so a freshly installed site records every patch as done
+without executing one — a patch therefore cannot heal a new server, which is
+the deployment most likely to need it. The sweep runs on every migrate instead,
+is idempotent, prints nothing when there is nothing to fix, and repairs:
+missing opening data (the import is allowed to fail so it can never block an
+upgrade — this is what notices), containers with no manifest, shipments still
+naming their box only through the legacy single link, catalogue items left on
+the `Both` fallback, and stale totals.
+
+The catalogue needs ERPNext's Item Group tree and UOM list, which the **setup
+wizard** creates — not `install-app`. On a provisioned-but-not-set-up server
+`items.catalogue_blocker()` reports why, the import defers instead of throwing,
+and the next migrate finishes the job. Run it by hand with
+`bench --site <site> execute bwm_logistics.opening_repair.run`.
+
+To start a site over instead of repairing it, that is a separate, deliberate act:
+`reset_demo_data.run()` then `import_jm_excel.load_opening()`.
+
 Note: the .xlsx itself stays out of git (`*.xlsx` is gitignored) but the
 extracted JSON does carry real container/BL numbers, customer names and
 quantities — keep the repo private.

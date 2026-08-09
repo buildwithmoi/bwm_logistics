@@ -163,6 +163,29 @@ def manifests_for(shipments: list[str]) -> dict[str, list[dict]]:
 	return out
 
 
+def refresh_stored_totals(shipments: list[str], batch: int = 500) -> int:
+	"""Re-derive the cached totals on the named shipments; return how many moved.
+
+	The totals are a cache of the manifest, so this writes them in place rather
+	than re-saving each document — a full save would run today's validation over
+	historical rows that were never required to pass it.
+	"""
+	changed = 0
+	for start in range(0, len(shipments), batch):
+		chunk = shipments[start : start + batch]
+		for shipment, lines in manifests_for(chunk).items():
+			totals = {
+				"total_packages": sum((line["qty"] or 0) for line in lines),
+				"total_weight_kg": sum((line["weight_kg"] or 0) * (line["qty"] or 1) for line in lines),
+				"total_declared_value": sum((line["declared_value"] or 0) for line in lines),
+			}
+			was = frappe.db.get_value("Shipment", shipment, list(totals), as_dict=True)
+			if any(round(float(was[k] or 0), 4) != round(float(v), 4) for k, v in totals.items()):
+				frappe.db.set_value("Shipment", shipment, totals, update_modified=False)
+				changed += 1
+	return changed
+
+
 class Shipment(Document):
 	def autoname(self):
 		# The document name IS the customer-facing tracking number:
@@ -231,6 +254,17 @@ class Shipment(Document):
 		detaching the box whose goods already have distributions recorded."""
 		if self.is_new() or not frappe.db.exists("DocType", "Distribution Entry"):
 			return
+
+		# Only a save that removes a box can break the link. If this one keeps
+		# every container it had, whatever is unreachable was already
+		# unreachable — refusing the save then just locks the record, and it
+		# would refuse a migration that attaches the box before filling it.
+		before = self.get_doc_before_save()
+		if before:
+			was = {r.container for r in before.containers if r.container}
+			if was <= {r.container for r in self.containers if r.container}:
+				return
+
 		products = frappe.get_all(
 			"Distribution Entry", filters={"shipment": self.name}, pluck="product", distinct=True
 		)

@@ -22,7 +22,7 @@ has contents is left alone.
 
 import frappe
 
-from bwm_logistics.api.items import _ensure_group, ensure_item
+from bwm_logistics.api.items import ITEM_GROUP, _ensure_group, ensure_item
 
 
 def execute():
@@ -37,21 +37,15 @@ def execute():
 		fields=["name", "customer", "container", "shipment_type"],
 		limit_page_length=0,
 	):
-		# 1. The container list: adopt the single link as the first row.
-		if ship.container and not frappe.db.exists(
-			"Shipment Container", {"parent": ship.name, "container": ship.container}
-		):
-			doc = frappe.get_doc("Shipment", ship.name)
-			doc.append("containers", {"container": ship.container})
-			doc.flags.ignore_permissions = True
-			doc.flags.ignore_validate_update_after_submit = True
-			doc.save(ignore_permissions=True)
-			moved["containers"] += 1
-
 		if not ship.container:
 			continue  # loose cargo: nothing to move it onto
 
-		# 2. The manifest. Own goods carry no customer tag — they are ours.
+		# 1. The manifest, onto the box. This has to happen BEFORE the shipment
+		#    is linked to it: saving the shipment runs check_distribution_products(),
+		#    which resolves the manifest through its containers — and a booking
+		#    that already has distributions recorded would fail that check while
+		#    the box is still empty, killing the migrate.
+		#    Own goods carry no customer tag: they are ours.
 		customer = None if ship.shipment_type == "Own Goods (Trading)" else ship.customer
 		packages = frappe.get_all(
 			"Shipment Package",
@@ -59,32 +53,37 @@ def execute():
 			fields=["description", "qty", "unit", "weight_kg", "declared_value"],
 			order_by="idx",
 		)
-		if not packages:
-			continue
-
 		container = frappe.get_doc("Container", ship.container)
-		if container.contents:
-			continue  # already migrated (or hand-entered) — don't double up
+		if packages and not container.contents:
+			for pkg in packages:
+				before = frappe.db.count("Item", {"item_group": ITEM_GROUP})
+				item = ensure_item(pkg.description, container.direction)
+				if item and frappe.db.count("Item", {"item_group": ITEM_GROUP}) > before:
+					moved["items"] += 1
+				container.append(
+					"contents",
+					{
+						"item": item,
+						"description": pkg.description,
+						"qty": pkg.qty or 0,
+						"unit": pkg.unit or "Nos",
+						"customer": customer,
+						"weight_kg": pkg.weight_kg,
+						"declared_value": pkg.declared_value,
+					},
+				)
+				moved["contents"] += 1
+			container.flags.ignore_permissions = True
+			container.save(ignore_permissions=True)
 
-		for pkg in packages:
-			item = ensure_item(pkg.description, container.direction)
-			if item:
-				moved["items"] += 1
-			container.append(
-				"contents",
-				{
-					"item": item,
-					"description": pkg.description,
-					"qty": pkg.qty or 0,
-					"unit": pkg.unit or "Nos",
-					"customer": customer,
-					"weight_kg": pkg.weight_kg,
-					"declared_value": pkg.declared_value,
-				},
-			)
-			moved["contents"] += 1
-		container.flags.ignore_permissions = True
-		container.save(ignore_permissions=True)
+		# 2. Now the container list: adopt the single link as the first row.
+		if not frappe.db.exists("Shipment Container", {"parent": ship.name, "container": ship.container}):
+			doc = frappe.get_doc("Shipment", ship.name)
+			doc.append("containers", {"container": ship.container})
+			doc.flags.ignore_permissions = True
+			doc.flags.ignore_validate_update_after_submit = True
+			doc.save(ignore_permissions=True)
+			moved["containers"] += 1
 
 	frappe.db.commit()
 	print(

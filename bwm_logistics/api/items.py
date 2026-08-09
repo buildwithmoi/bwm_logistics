@@ -24,15 +24,44 @@ ITEM_GROUP = "Logistics Goods"
 UNITS = ["Nos", "Cartons", "Bags", "Boxes", "Pallets", "Kg", "Pieces", "Units"]
 
 
+def catalogue_blocker() -> str | None:
+	"""Why this site cannot hold a goods catalogue yet, or None if it can.
+
+	ERPNext builds the Item Group tree and the UOM list in its setup wizard, not
+	on install — so a server that has been provisioned but not set up has
+	neither, and anything that creates an Item there dies on a link validation.
+	Callers use this to defer politely instead of failing a deploy.
+	"""
+	if not frappe.db.count("Item Group"):
+		return "the Item Group tree does not exist yet (ERPNext setup wizard not completed)"
+	if not frappe.db.count("UOM"):
+		return "no units of measure exist yet (ERPNext setup wizard not completed)"
+	return None
+
+
+def _default_uom() -> str:
+	return "Nos" if frappe.db.exists("UOM", "Nos") else frappe.db.get_value("UOM", {}, "name")
+
+
 def _ensure_group() -> str:
-	if not frappe.db.exists("Item Group", ITEM_GROUP):
-		parent = frappe.db.get_value("Item Group", {"is_group": 1, "parent_item_group": ""}) or "All Item Groups"
-		doc = frappe.new_doc("Item Group")
-		doc.item_group_name = ITEM_GROUP
-		doc.parent_item_group = parent
-		doc.is_group = 0
-		doc.flags.ignore_permissions = True
-		doc.insert(ignore_permissions=True)
+	if frappe.db.exists("Item Group", ITEM_GROUP):
+		return ITEM_GROUP
+
+	# The tree root is the group with no parent. Match NULL as well as "" — a
+	# root created by the setup wizard stores NULL, and reading only "" sent
+	# this to a hard-coded "All Item Groups" that need not exist.
+	parent = frappe.db.get_value("Item Group", {"is_group": 1, "parent_item_group": ("in", ("", None))})
+	if not parent:
+		parent = frappe.db.get_value("Item Group", {"is_group": 1})
+	if not parent:
+		frappe.throw(_("No Item Group tree on this site — complete the ERPNext setup wizard first."))
+
+	doc = frappe.new_doc("Item Group")
+	doc.item_group_name = ITEM_GROUP
+	doc.parent_item_group = parent
+	doc.is_group = 0
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
 	return ITEM_GROUP
 
 
@@ -63,7 +92,7 @@ def ensure_item(description: str, direction: str | None = None) -> str | None:
 	item.is_stock_item = 0
 	item.is_sales_item = 1
 	item.is_purchase_item = 1
-	item.stock_uom = "Nos"
+	item.stock_uom = _default_uom()
 	if frappe.db.has_column("Item", "bwm_trade_direction"):
 		item.bwm_trade_direction = direction if direction in ("Import", "Export") else "Both"
 	item.flags.ignore_permissions = True
@@ -113,7 +142,7 @@ def save_item(payload):
 		doc.is_sales_item = 1
 		doc.is_purchase_item = 1
 	doc.item_name = item_name
-	doc.stock_uom = data.get("unit") or doc.stock_uom or "Nos"
+	doc.stock_uom = data.get("unit") or doc.stock_uom or _default_uom()
 	doc.bwm_trade_direction = data.get("direction") or "Both"
 	doc.flags.ignore_permissions = True
 	doc.save(ignore_permissions=True)

@@ -771,6 +771,24 @@ class TestStockDistribution(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			ship.save(ignore_permissions=True)
 
+	def test_guard_allows_a_save_that_keeps_every_box(self):
+		"""Editing a shipment for an unrelated reason must not be refused
+		because of a manifest it isn't touching — and a migration that attaches
+		a box before filling it must not be refused either. Both used to throw,
+		and the second one killed `bench migrate` on the client's data."""
+		ship = self._trading()
+		self._entry(ship.name, 10)
+		ship.reload()
+		ship.notes = "edited for something else entirely"
+		ship.save(ignore_permissions=True)  # must not raise
+
+		# Attaching a second, still-empty box is an addition, not a detach.
+		empty = frappe.get_doc({"doctype": "Container", "direction": "Import"}).insert(
+			ignore_permissions=True
+		)
+		ship.append("containers", {"container": empty.name})
+		ship.save(ignore_permissions=True)  # must not raise
+
 	def test_p8_milestones_idempotent(self):
 		from bwm_logistics.install import ensure_p8_milestones
 
