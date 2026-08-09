@@ -289,6 +289,9 @@ async function makeInvoice() {
 					<Button variant="outline" size="icon" title="Print labels" aria-label="Print labels" @click="router.push(`/shipments/${name}/label`)">
 						<Printer class="h-4 w-4" aria-hidden="true" />
 					</Button>
+					<Button v-if="canEdit" variant="outline" size="sm" @click="router.push(`/shipments/${name}/edit`)">
+						Edit
+					</Button>
 				</template>
 			</DetailHeader>
 

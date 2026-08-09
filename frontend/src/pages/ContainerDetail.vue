@@ -209,6 +209,9 @@ const customsRows = computed(() => [
 					>
 						<RefreshCw class="h-4 w-4" aria-hidden="true" />
 					</Button>
+					<Button v-if="canEdit" variant="outline" size="sm" @click="router.push(`/containers/${name}/edit`)">
+						Edit
+					</Button>
 				</template>
 			</DetailHeader>
 

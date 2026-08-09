@@ -184,7 +184,12 @@ indentation, line length 110; prettier + eslint for JS/Vue).
 - **Creating a record is a page, not a dialog**, whenever it takes more than a
   handful of fields — containers, shipments, delivery runs, invoices, purchases
   all live at `/…/new` and are built from **`ui/FormPage.vue`** +
-  **`ui/FormSection.vue`**. Dialogs stay for the small stuff: a customer, a
+  **`ui/FormSection.vue`**. **Editing reuses the same page**: `/containers/:name/edit`
+  and `/shipments/:name/edit` mount `ContainerNew.vue` / `ShipmentNew.vue`, which
+  switch on `route.params.name` — one form, so a field can never be creatable
+  but not correctable. An edit deliberately omits `branch` from the payload so
+  saving does not move the record to whatever the branch filter happens to be.
+  The detail screens carry the `Edit` action in `DetailHeader`'s `#actions`. Dialogs stay for the small stuff: a customer, a
   driver, a payment, a milestone. A repeating line-item table is the tell that
   something wants a page. (Rate cards are the one repeating-table form still in
   a dialog.)

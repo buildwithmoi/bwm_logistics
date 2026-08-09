@@ -20,12 +20,23 @@ const routes = [
 		name: "container-detail",
 		component: () => import("@/pages/ContainerDetail.vue"),
 	},
+	// Editing reuses the create page — same form, loaded with the record.
+	{
+		path: "/containers/:name/edit",
+		name: "container-edit",
+		component: () => import("@/pages/ContainerNew.vue"),
+	},
 	{ path: "/shipments", name: "shipments", component: () => import("@/pages/Shipments.vue") },
 	{ path: "/shipments/new", name: "shipment-new", component: () => import("@/pages/ShipmentNew.vue") },
 	{
 		path: "/shipments/:name",
 		name: "shipment-detail",
 		component: () => import("@/pages/ShipmentDetail.vue"),
+	},
+	{
+		path: "/shipments/:name/edit",
+		name: "shipment-edit",
+		component: () => import("@/pages/ShipmentNew.vue"),
 	},
 	{
 		path: "/shipments/:name/label",
@@ -110,9 +121,11 @@ export const router = createRouter({
 const ACCESS_ALIAS: Record<string, string> = {
 	"container-detail": "containers",
 	"container-new": "containers",
+	"container-edit": "containers",
 	"shipment-detail": "shipments",
 	"shipment-label": "shipments",
 	"shipment-new": "shipments",
+	"shipment-edit": "shipments",
 	"dispatch-run": "dispatch",
 	"dispatch-run-new": "dispatch",
 	"customer-statement": "customers",

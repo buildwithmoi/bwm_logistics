@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { Trash2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtMoney } from "@/lib/format";
@@ -18,10 +18,16 @@ import FormSection from "@/components/ui/FormSection.vue";
 // New shipment. The old dialog had five inputs on one line, which a phone could
 // not show — here each package/charge is its own block on small screens and
 // collapses to a single row from sm up.
+// Create and correct are the same page: /shipments/new and
+// /shipments/:name/edit. The voyage lives here now, so being unable to reopen a
+// booking would mean being unable to fix an ETA.
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const branch = useBranchStore();
 
+const editing = computed(() => (route.params.name ? String(route.params.name) : null));
+const loading = ref(false);
 const saving = ref(false);
 
 interface ChargeRow {
@@ -63,12 +69,47 @@ interface Masters {
 	ports: string[];
 }
 const masters = ref<Masters>({ shipping_lines: [], ports: [] });
+
+const TEXT_FIELDS = [
+	"shipment_type", "direction", "vessel", "voyage_no", "booking_no",
+	"consignee_name", "consignee_phone", "destination", "delivery_address",
+] as const;
+const NULLABLE_FIELDS = [
+	"customer", "supplier", "shipping_line", "port_of_loading", "port_of_discharge",
+	"etd", "eta", "date_received",
+] as const;
+
+async function load(name: string) {
+	loading.value = true;
+	try {
+		const doc = await call<Record<string, unknown>>("bwm_logistics.api.shipments.get_shipment", { name });
+		for (const key of TEXT_FIELDS) form[key] = (doc[key] as string) || form[key];
+		for (const key of NULLABLE_FIELDS) form[key] = (doc[key] as string) ?? "";
+		customerDisplay.value = (doc.customer_name as string) ?? null;
+		supplierDisplay.value = (doc.supplier_name as string) ?? null;
+		form.containers = ((doc.containers as Array<Record<string, unknown>>) || []).map((c) => ({
+			container: c.container as string,
+			label: (c.container_no as string) || (c.container as string),
+		}));
+		form.charges = ((doc.charges as Array<Record<string, unknown>>) || []).map((c) => ({
+			charge_type: c.charge_type as string,
+			amount: (c.amount as number) ?? null,
+		}));
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not load shipment");
+		router.push("/shipments");
+	} finally {
+		loading.value = false;
+	}
+}
+
 onMounted(async () => {
 	try {
 		masters.value = await call<Masters>("bwm_logistics.api.containers.get_masters");
 	} catch {
 		/* dropdowns degrade to free entry */
 	}
+	if (editing.value) await load(editing.value);
 });
 
 type MasterHit = Record<string, unknown> & { name: string };
@@ -192,11 +233,14 @@ async function save() {
 				port_of_loading: form.port_of_loading || null,
 				port_of_discharge: form.port_of_discharge || null,
 				containers: form.containers.map((c) => c.container),
-				branch: branch.filter,
+				// Branch belongs to the booking as created; an edit must not move
+				// it to whatever the current filter happens to be.
+				branch: editing.value ? undefined : branch.filter,
 				charges: form.charges.filter((c) => c.charge_type),
+				name: editing.value,
 			},
 		});
-		toast.success(`Shipment ${res.name} created`);
+		toast.success(editing.value ? `Shipment ${res.name} saved` : `Shipment ${res.name} created`);
 		router.push(`/shipments/${res.name}`);
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not save shipment");
@@ -207,7 +251,11 @@ async function save() {
 </script>
 
 <template>
-	<FormPage title="New shipment" back-to="/shipments" back-label="Shipments">
+	<FormPage
+		:title="editing ? 'Edit shipment' : 'New shipment'"
+		:back-to="editing ? `/shipments/${editing}` : '/shipments'"
+		:back-label="editing ? 'Shipment' : 'Shipments'"
+	>
 		<FormSection title="Type">
 			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 				<button
@@ -431,8 +479,10 @@ async function save() {
 		</FormSection>
 
 		<template #actions>
-			<Button variant="outline" @click="router.push('/shipments')">Cancel</Button>
-			<Button :loading="saving" @click="save">Create shipment</Button>
+			<Button variant="outline" @click="router.push(editing ? `/shipments/${editing}` : '/shipments')">Cancel</Button>
+			<Button :loading="saving" :disabled="loading" @click="save">
+				{{ editing ? "Save changes" : "Create shipment" }}
+			</Button>
 		</template>
 	</FormPage>
 </template>

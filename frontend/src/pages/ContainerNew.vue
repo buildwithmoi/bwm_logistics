@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Trash2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { useToast } from "@/composables/useToast";
@@ -13,13 +13,17 @@ import SearchCombo from "@/components/ui/SearchCombo.vue";
 import FormPage from "@/components/ui/FormPage.vue";
 import FormSection from "@/components/ui/FormSection.vue";
 
-// New container — the voyage paperwork, grouped the way it arrives: what it is,
-// which ship it's on, which ports, and the demurrage clock.
+// The container form, for both creating one and correcting it afterwards —
+// /containers/new and /containers/:name/edit are the same page. A record you
+// can create but never fix is a record you have to get right first time.
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const branch = useBranchStore();
 
+const editing = computed(() => (route.params.name ? String(route.params.name) : null));
 const saving = ref(false);
+const loading = ref(false);
 
 // ── the manifest ────────────────────────────────────────────────────────────
 // What is in the box, and whose it is. `customer` empty means the goods are
@@ -91,12 +95,47 @@ interface Masters {
 	container_types: string[];
 }
 const masters = ref<Masters>({ container_types: [] });
+
+interface ContainerDoc extends Record<string, unknown> {
+	doc: Record<string, unknown>;
+	contents?: Array<Record<string, unknown>>;
+}
+async function load(name: string) {
+	loading.value = true;
+	try {
+		const data = await call<ContainerDoc>("bwm_logistics.api.containers.get_container", { name });
+		const doc = data.doc || (data as Record<string, unknown>);
+		form.direction = (doc.direction as string) || "Import";
+		form.container_no = (doc.container_no as string) || "";
+		form.container_type = (doc.container_type as string) || "";
+		form.bl_no = (doc.bl_no as string) || "";
+		form.free_days = doc.free_days == null ? "" : String(doc.free_days);
+		const lines = (data.contents || []) as Array<Record<string, unknown>>;
+		form.contents = lines.length
+			? lines.map((c) => ({
+					item: (c.item as string) ?? null,
+					label: (c.description as string) ?? null,
+					qty: (c.qty as number) ?? null,
+					unit: (c.unit as string) || "Nos",
+					customer: (c.customer as string) ?? null,
+					customerLabel: (c.customer_name as string) ?? null,
+				}))
+			: [blankLine()];
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not load container");
+		router.push("/containers");
+	} finally {
+		loading.value = false;
+	}
+}
+
 onMounted(async () => {
 	try {
 		masters.value = await call<Masters>("bwm_logistics.api.containers.get_masters");
 	} catch {
 		/* dropdowns degrade to free entry */
 	}
+	if (editing.value) await load(editing.value);
 });
 
 async function save() {
@@ -109,8 +148,11 @@ async function save() {
 		const res = await call<{ name: string }>("bwm_logistics.api.containers.save_container", {
 			payload: {
 				...form,
+				name: editing.value,
 				free_days: form.free_days ? Number(form.free_days) : null,
-				branch: branch.filter,
+				// Branch is set when the box is created; an edit must not
+				// silently move it to whatever the current filter happens to be.
+				branch: editing.value ? undefined : branch.filter,
 				contents: form.contents
 					.filter((c) => c.item)
 					.map((c) => ({
@@ -122,7 +164,7 @@ async function save() {
 					})),
 			},
 		});
-		toast.success("Container created");
+		toast.success(editing.value ? "Container saved" : "Container created");
 		router.push(`/containers/${res.name}`);
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not save container");
@@ -134,10 +176,10 @@ async function save() {
 
 <template>
 	<FormPage
-		title="New container"
-		subtitle="Only Direction is required — the rest can be filled in as the paperwork arrives."
-		back-to="/containers"
-		back-label="Containers"
+		:title="editing ? 'Edit container' : 'New container'"
+		:subtitle="editing ? undefined : 'Only Direction is required — the rest can be filled in as the paperwork arrives.'"
+		:back-to="editing ? `/containers/${editing}` : '/containers'"
+		:back-label="editing ? 'Container' : 'Containers'"
 	>
 		<FormSection title="Container">
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -245,8 +287,10 @@ async function save() {
 		</FormSection>
 
 		<template #actions>
-			<Button variant="outline" @click="router.push('/containers')">Cancel</Button>
-			<Button :loading="saving" @click="save">Create container</Button>
+			<Button variant="outline" @click="router.push(editing ? `/containers/${editing}` : '/containers')">Cancel</Button>
+			<Button :loading="saving" :disabled="loading" @click="save">
+				{{ editing ? "Save changes" : "Create container" }}
+			</Button>
 		</template>
 	</FormPage>
 </template>
