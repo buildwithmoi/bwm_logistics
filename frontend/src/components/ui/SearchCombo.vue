@@ -31,7 +31,17 @@ const emit = defineEmits<{
 	(e: "create", q: string): void;
 }>();
 
+// The new record is named by whatever has been typed into the search box, so
+// there is nothing to create until something has been. Clicking with an empty
+// box used to emit "" and every caller returned silently — the row looked like
+// a button and did nothing. Send the cursor back to the box instead.
+const canCreate = computed(() => !!query.value.trim());
+
 function emitCreate() {
+	if (!canCreate.value) {
+		inputRef.value?.focus();
+		return;
+	}
 	emit("create", query.value.trim());
 	open.value = false;
 	query.value = "";
@@ -195,15 +205,21 @@ function onBlur() {
 						/>
 					</button>
 
-					<!-- Create-new footer action — always the last item -->
+					<!-- Create-new footer action — always the last item. It names the
+					     new record after whatever is typed, so with an empty box it
+					     says so rather than looking like a button that does nothing. -->
 					<button
 						v-if="createLabel"
 						type="button"
-						class="flex w-full items-center gap-2 border-t border-gray-100 px-3 py-2.5 text-left text-sm font-medium text-brand-700 transition-colors hover:bg-brand-50"
+						class="flex w-full items-center gap-2 border-t border-gray-100 px-3 py-2.5 text-left text-sm transition-colors"
+						:class="canCreate ? 'font-medium text-brand-700 hover:bg-brand-50' : 'text-muted-foreground hover:bg-gray-50'"
 						@mousedown.prevent="emitCreate"
 					>
-						<Plus class="h-4 w-4" />
-						<span class="truncate">{{ createLabel }}<span v-if="query.trim()" class="font-normal text-brand-600"> “{{ query.trim() }}”</span></span>
+						<Plus class="h-4 w-4 shrink-0" />
+						<span v-if="canCreate" class="truncate">
+							{{ createLabel }}<span class="font-normal text-brand-600"> “{{ query.trim() }}”</span>
+						</span>
+						<span v-else class="truncate">Type a name to {{ createLabel.toLowerCase() }}</span>
 					</button>
 				</div>
 			</div>

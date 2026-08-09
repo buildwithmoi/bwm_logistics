@@ -38,8 +38,13 @@ test.describe("container carries the manifest", () => {
 		await page.waitForTimeout(600);
 		// The catalogue seeded from the client's sheet, plus a way to add more.
 		await expect(page.getByText("US Hen Leg Quarter")).toBeVisible({ timeout: 5000 });
-		// Unknown goods don't block the flow — the picker can create one.
-		await expect(page.getByRole("button", { name: /Add item/ })).toBeVisible();
+		// Unknown goods don't block the flow — the picker can create one. With
+		// nothing typed there is no name to create it under, so the row says so
+		// rather than looking like a button that does nothing.
+		await expect(page.getByRole("button", { name: /Type a name to add item/i })).toBeVisible();
+		await page.locator("input:focus").fill("Some Unlisted Goods");
+		await page.waitForTimeout(600);
+		await expect(page.getByRole("button", { name: /Add item.*Some Unlisted Goods/i })).toBeVisible();
 	});
 
 	test("container detail lists contents and who is in the box", async ({ page }) => {
