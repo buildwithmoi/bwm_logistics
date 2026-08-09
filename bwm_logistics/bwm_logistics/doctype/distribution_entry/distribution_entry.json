@@ -7,6 +7,7 @@
  "field_order": [
   "naming_series",
   "shipment",
+  "item",
   "product",
   "column_break_head",
   "qty",
@@ -47,7 +48,17 @@
    "search_index": 1
   },
   {
-   "description": "Must match one of the shipment's package descriptions.",
+   "description": "The catalogue item distributed. Entries imported before the catalogue existed match on name instead.",
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "search_index": 1
+  },
+  {
+   "description": "Display name, kept as recorded. Balances key on the Item where one is set.",
+   "fetch_from": "item.item_name",
+   "fetch_if_empty": 1,
    "fieldname": "product",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -66,7 +77,7 @@
    "reqd": 1
   },
   {
-   "description": "Filled from the matching package line when left empty.",
+   "description": "Filled from the matching manifest line when left empty.",
    "fieldname": "unit",
    "fieldtype": "Data",
    "label": "Unit"
@@ -84,7 +95,7 @@
    "label": "Recipient"
   },
   {
-   "description": "Free text — a truck, a person, or \"Storage\".",
+   "description": "Free text \u2014 a truck, a person, or \"Storage\".",
    "fieldname": "recipient",
    "fieldtype": "Data",
    "in_list_view": 1,

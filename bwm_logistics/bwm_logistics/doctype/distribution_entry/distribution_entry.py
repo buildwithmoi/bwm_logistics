@@ -19,6 +19,16 @@ def _norm(text) -> str:
 	return (text or "").strip().lower()
 
 
+def line_key(item, description) -> str:
+	"""What identifies a product in the ledger.
+
+	The catalogue Item where there is one, so renaming a manifest line carries
+	through instead of orphaning every entry that named it. Entries recorded
+	before the catalogue existed still key on the name they were written with.
+	"""
+	return f"item:{item}" if item else f"name:{_norm(description)}"
+
+
 class DistributionEntry(Document):
 	def before_insert(self):
 		self.recorded_by = frappe.session.user
@@ -50,25 +60,34 @@ class DistributionEntry(Document):
 		from bwm_logistics.bwm_logistics.doctype.shipment.shipment import shipment_manifest
 
 		lines = shipment_manifest(self.shipment)
-		matching = [line for line in lines if _norm(line["description"]) == _norm(self.product)]
+		# Prefer the catalogue item; fall back to the name for an entry (or a
+		# manifest) written before the catalogue existed.
+		matching = [line for line in lines if self.item and line["item"] == self.item]
+		if not matching:
+			matching = [line for line in lines if _norm(line["description"]) == _norm(self.product)]
 		if not matching:
 			frappe.throw(
-				_("Product {0} is not in shipment {1}'s containers — it must match a manifest line exactly.").format(
-					frappe.bold(self.product), self.shipment
+				_("Product {0} is not in shipment {1}'s containers — it must match a manifest line.").format(
+					frappe.bold(self.product or self.item), self.shipment
 				)
 			)
+		if not self.item:
+			self.item = matching[0]["item"]
+		if not self.product:
+			self.product = matching[0]["description"]
 		if not self.unit:
 			self.unit = matching[0]["unit"] or "PIECES"
 
+		mine = line_key(self.item, self.product)
 		received = sum(flt(line["qty"]) for line in matching)
 		others = sum(
 			flt(r.qty)
 			for r in frappe.get_all(
 				"Distribution Entry",
 				filters={"shipment": self.shipment, "name": ("!=", self.name or "")},
-				fields=["qty", "product"],
+				fields=["qty", "product", "item"],
 			)
-			if _norm(r.product) == _norm(self.product)
+			if line_key(r.item, r.product) == mine
 		)
 		if others + flt(self.qty) > received + QTY_TOLERANCE:
 			frappe.throw(

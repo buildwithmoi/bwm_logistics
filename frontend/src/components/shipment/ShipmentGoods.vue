@@ -30,11 +30,14 @@ const canDistribute = computed(() => session.can("stock", "create") || session.c
 const fmtQty = (v?: number) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 interface BalanceLine {
+	item?: string | null;
 	product: string;
 	unit: string;
 	received: number;
 	distributed: number;
 	remaining: number;
+	/** Distributed but no longer on the manifest — surfaced, never dropped. */
+	off_manifest?: boolean;
 }
 interface Balances {
 	lines: BalanceLine[];
@@ -135,6 +138,7 @@ async function saveDistribution() {
 		await call("bwm_logistics.api.stock.record_distribution", {
 			payload: {
 				shipment: props.shipment,
+				item: selectedLine.value?.item || null,
 				product: distForm.product,
 				qty: distForm.qty,
 				recipient: distForm.recipient,
@@ -215,12 +219,15 @@ const columns: Column[] = [
 		<!-- On a phone the bar gets its own line: squeezed between a product name
 		     and a figure it shrinks to a stub that reads nothing. -->
 		<div v-if="balances.lines.length" class="mb-5 space-y-3">
-			<div v-for="l in balances.lines" :key="l.product" class="sm:flex sm:items-center sm:gap-3">
+			<div v-for="l in balances.lines" :key="l.item || l.product" class="sm:flex sm:items-center sm:gap-3">
 				<div class="flex min-w-0 items-baseline justify-between gap-3 sm:block sm:w-64 sm:shrink-0">
-					<div class="min-w-0 truncate text-sm font-medium">{{ l.product }}</div>
+					<div class="min-w-0 truncate text-sm font-medium">
+						{{ l.product }}
+						<span v-if="l.off_manifest" class="font-normal text-red-600">· not on the manifest</span>
+					</div>
 					<span
 						class="shrink-0 text-sm font-semibold tabular-nums sm:hidden"
-						:class="l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'"
+						:class="l.remaining < 0 ? 'text-red-600' : l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'"
 					>
 						{{ fmtQty(l.remaining) }} left
 					</span>
@@ -239,7 +246,7 @@ const columns: Column[] = [
 				</div>
 				<span
 					class="hidden w-28 shrink-0 text-right text-sm font-semibold tabular-nums sm:inline"
-					:class="l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'"
+					:class="l.remaining < 0 ? 'text-red-600' : l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'"
 				>
 					{{ fmtQty(l.remaining) }} left
 				</span>

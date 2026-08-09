@@ -7,4 +7,5 @@
 bwm_logistics.patches.v1_0.import_client_opening_data
 bwm_logistics.patches.v1_0.move_packages_to_containers
 bwm_logistics.patches.v1_0.recompute_shipment_totals
+bwm_logistics.patches.v1_0.link_distributions_to_items
 bwm_logistics.patches.v1_0.normalise_opening_data_to_model_b

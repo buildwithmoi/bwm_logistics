@@ -90,6 +90,7 @@ def run():
 		_rebuild_empty_manifests(data, report)
 	_adopt_single_container_links(report)
 	_classify_items_from_their_boxes(report)
+	_link_distributions_to_items(report)
 
 	changed = refresh_stored_totals(frappe.get_all("Shipment", pluck="name", limit_page_length=0))
 	if changed:
@@ -258,6 +259,25 @@ def _classify_items_from_their_boxes(report: list[str]):
 
 	if fixed:
 		report.append(f"classified {fixed} catalogue item(s) by the boxes carrying them")
+
+
+# ── 6. the ledger ────────────────────────────────────────────────────────────
+def _link_distributions_to_items(report: list[str]):
+	"""Point any unlinked distribution entry at the catalogue item it meant.
+
+	Same work as patches.v1_0.link_distributions_to_items — repeated here
+	because a freshly installed site never runs a patch, and an entry left
+	matching on its name loses the protection of the rename.
+	"""
+	from bwm_logistics.patches.v1_0.link_distributions_to_items import execute as link
+
+	if not frappe.db.count("Distribution Entry", {"item": ("is", "not set")}):
+		return
+	before = frappe.db.count("Distribution Entry", {"item": ("is", "set")})
+	link()
+	linked = frappe.db.count("Distribution Entry", {"item": ("is", "set")}) - before
+	if linked:
+		report.append(f"linked {linked} distribution entr(ies) to their catalogue item")
 
 
 # ── reporting ────────────────────────────────────────────────────────────────

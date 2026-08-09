@@ -292,6 +292,25 @@ fails the suite rather than quietly lengthening a page.
 - **A manifest line's `unit` and `description` default from the Item but are not
   dictated by it** (`fetch_if_empty`). The same goods ship in cartons on one
   booking and bags on the next; the line is the truth.
+- **The distribution ledger keys on the Item, not on a name.**
+  `Distribution Entry.item` is the join and `distribution_entry.line_key()` is
+  the one place that says so — item where there is one, lowercased name for
+  rows written before the catalogue existed. This is why renaming a manifest
+  line is free: the name follows the link. Matching by string silently zeroed
+  every entry recorded against a line the moment somebody corrected its
+  spelling.
+- **Editing a container reaches the bookings inside it.** The manifest lives on
+  the box but the totals are cached on the shipment, so `Container.on_update`
+  calls `refresh_stored_totals()` for every shipment riding in it — otherwise
+  correcting a quantity leaves the booking, and the customer's portal, quoting
+  the old number. `Container.check_distributed_contents()` blocks removing a
+  line or cutting it below what has already gone out, and — like the shipment
+  guard — objects only to what *this* save takes away, so a box whose numbers
+  already disagreed stays correctable.
+- **A distribution is never dropped from a balance.** `_balances()` gives an
+  entry with no matching manifest line its own row with nothing received, so it
+  reads as negative and is flagged `off_manifest`. Goods that left the yard do
+  not disappear because somebody edited the packing list.
 - **Contents point at ERPNext `Item`** (group `Logistics Goods`), classified by
   the `bwm_trade_direction` custom field so an export box is never offered
   import-only goods. Managed at `/items`; the picker can create one inline.

@@ -289,13 +289,13 @@ def load(data: dict) -> dict:
 	for row in data["distributions"]:
 		# Find the trading shipment whose manifest matches this product — their
 		# sheet shortens names ("Hen Leg Quarter" vs "US Hen Leg Quarter").
-		target, package_desc = None, None
+		target, package_desc, package_item = None, None, None
 		for ship_name in shipments:
 			if not ship_name:
 				continue
 			for line in manifests.get(ship_name, []):
 				if _norm(row["product"]) in _norm(line["description"]) and flt(line["qty"]) > 0:
-					target, package_desc = ship_name, line["description"]
+					target, package_desc, package_item = ship_name, line["description"], line["item"]
 					break
 			if target:
 				break
@@ -320,6 +320,7 @@ def load(data: dict) -> dict:
 			{
 				"doctype": "Distribution Entry",
 				"shipment": target,
+				"item": package_item,
 				"product": package_desc,
 				"qty": flt(row["qty"]),
 				"recipient": row["recipient"],

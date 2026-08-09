@@ -37,12 +37,22 @@ def _norm(text) -> str:
 # ─── Balances ────────────────────────────────────────────────────────────────
 def _balances(manifest: list[dict], distributed: list[dict]) -> dict:
 	"""Fold one shipment's manifest and its distributions into per-product
-	received / distributed / remaining."""
+	received / distributed / remaining.
+
+	Keyed on the catalogue Item, so renaming a manifest line does not orphan
+	the entries recorded against it. A distribution with no matching manifest
+	line still gets a row — with nothing received, so it reads as negative
+	rather than vanishing. Goods that left the yard are not made to disappear
+	by an edit to the packing list.
+	"""
+	from bwm_logistics.bwm_logistics.doctype.distribution_entry.distribution_entry import line_key
+
 	lines = {}
 	for row in manifest:
-		key = _norm(row["description"])
+		key = line_key(row["item"], row["description"])
 		if key not in lines:
 			lines[key] = {
+				"item": row["item"],
 				"product": (row["description"] or "").strip(),
 				"unit": row["unit"] or "PIECES",
 				"received": 0.0,
@@ -51,9 +61,17 @@ def _balances(manifest: list[dict], distributed: list[dict]) -> dict:
 		lines[key]["received"] += flt(row["qty"])
 
 	for r in distributed:
-		key = _norm(r["product"])
-		if key in lines:
-			lines[key]["distributed"] += flt(r["qty"])
+		key = line_key(r.get("item"), r.get("product"))
+		if key not in lines:
+			lines[key] = {
+				"item": r.get("item"),
+				"product": (r.get("product") or "").strip(),
+				"unit": r.get("unit") or "PIECES",
+				"received": 0.0,
+				"distributed": 0.0,
+				"off_manifest": True,
+			}
+		lines[key]["distributed"] += flt(r["qty"])
 
 	out_lines = []
 	for line in lines.values():
@@ -79,7 +97,11 @@ def shipment_balances(shipment: str) -> dict:
 
 	return _balances(
 		shipment_manifest(shipment),
-		frappe.get_all("Distribution Entry", filters={"shipment": shipment}, fields=["product", "qty"]),
+		frappe.get_all(
+			"Distribution Entry",
+			filters={"shipment": shipment},
+			fields=["item", "product", "unit", "qty"],
+		),
 	)
 
 
@@ -96,7 +118,7 @@ def balances_for(shipments: list[str]) -> dict[str, dict]:
 	for row in frappe.get_all(
 		"Distribution Entry",
 		filters={"shipment": ("in", shipments)},
-		fields=["shipment", "product", "qty"],
+		fields=["shipment", "item", "product", "unit", "qty"],
 	):
 		spent[row.shipment].append(row)
 	return {s: _balances(manifests.get(s, []), spent[s]) for s in shipments}
@@ -119,6 +141,7 @@ def record_distribution(payload):
 		{
 			"doctype": "Distribution Entry",
 			"shipment": data.get("shipment"),
+			"item": data.get("item") or None,
 			"product": data.get("product"),
 			"qty": flt(data.get("qty")),
 			"recipient": (data.get("recipient") or "").strip(),
@@ -155,7 +178,7 @@ def list_distributions(shipment=None, search=None, start=0, limit=25):
 		filters=filters,
 		or_filters=or_filters,
 		fields=[
-			"name", "shipment", "product", "qty", "unit", "recipient", "customer",
+			"name", "shipment", "item", "product", "qty", "unit", "recipient", "customer",
 			"destination", "unit_price", "amount", "delivery_date", "sales_invoice",
 			"recorded_by", "creation",
 		],
@@ -224,7 +247,9 @@ def stock_overview():
 		else:
 			arrived.append(row)
 			for line in balances["lines"]:
-				bucket = products[(_norm(line["product"]), line["unit"])]
+				# Same key as the balances themselves: one catalogue item is one
+				# product across every container, however its name was typed.
+				bucket = products[(line.get("item") or _norm(line["product"]), line["unit"])]
 				bucket["product"] = line["product"]
 				bucket["unit"] = line["unit"]
 				bucket["received"] += line["received"]

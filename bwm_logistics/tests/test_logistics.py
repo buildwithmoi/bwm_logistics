@@ -771,6 +771,86 @@ class TestStockDistribution(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			ship.save(ignore_permissions=True)
 
+	def _box_of(self, ship):
+		return frappe.get_doc(
+			"Container", frappe.get_all("Shipment Container", filters={"parent": ship.name}, pluck="container")[0]
+		)
+
+	def test_container_edit_refreshes_the_bookings_in_it(self):
+		"""The manifest is on the box but the totals are cached on the booking.
+		Correcting a quantity — which is the first thing the client will do to
+		the imported containers — has to reach every shipment in that box, and
+		the customer's portal with it."""
+		ship = self._trading(qty=0)
+		self.assertEqual(ship.total_packages, 0)
+
+		box = self._box_of(ship)
+		box.contents[0].qty = 2568
+		box.contents[0].weight_kg = 20
+		box.save(ignore_permissions=True)
+
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "total_packages"), 2568)
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "total_weight_kg"), 2568 * 20)
+
+	def test_cannot_cut_a_container_line_below_what_left_the_yard(self):
+		ship = self._trading(qty=500)
+		self._entry(ship.name, 400)
+		box = self._box_of(ship)
+		box.contents[0].qty = 100
+		with self.assertRaises(frappe.ValidationError):
+			box.save(ignore_permissions=True)
+
+	def test_cannot_delete_a_container_line_that_has_been_distributed(self):
+		ship = self._trading(qty=500)
+		self._entry(ship.name, 400)
+		box = self._box_of(ship)
+		box.set("contents", [])
+		with self.assertRaises(frappe.ValidationError):
+			box.save(ignore_permissions=True)
+
+	def test_a_reduction_that_still_covers_what_left_is_fine(self):
+		ship = self._trading(qty=500)
+		self._entry(ship.name, 100)
+		box = self._box_of(ship)
+		box.contents[0].qty = 200
+		box.save(ignore_permissions=True)  # must not raise
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "total_packages"), 200)
+
+	def test_renaming_a_line_carries_its_distributions_with_it(self):
+		"""The ledger points at the catalogue Item, so correcting a product
+		name is free — it used to silently zero everything recorded against it."""
+		from bwm_logistics.api.stock import shipment_balances
+
+		ship = self._trading(qty=500)
+		self._entry(ship.name, 400)
+		box = self._box_of(ship)
+		box.contents[0].description = "CI Frozen Goods (corrected)"
+		box.save(ignore_permissions=True)
+
+		line = shipment_balances(ship.name)["lines"][0]
+		self.assertEqual(line["product"], "CI Frozen Goods (corrected)")
+		self.assertEqual(line["distributed"], 400)
+		self.assertEqual(line["remaining"], 100)
+
+	def test_a_distribution_off_the_manifest_is_shown_not_dropped(self):
+		"""An entry whose goods are no longer on the manifest — a legacy row
+		matched only by name — reads as negative rather than disappearing.
+		Goods that left the yard are never made to vanish by an edit."""
+		from bwm_logistics.api.stock import shipment_balances
+
+		ship = self._trading(qty=500)
+		entry = self._entry(ship.name, 50)
+		frappe.db.set_value("Distribution Entry", entry.name, "item", None)
+		box = self._box_of(ship)
+		frappe.db.set_value("Container Content", box.contents[0].name, "description", "Renamed away")
+
+		balances = shipment_balances(ship.name)
+		orphan = [line for line in balances["lines"] if line.get("off_manifest")]
+		self.assertEqual(len(orphan), 1, "the distribution vanished from the balance")
+		self.assertEqual(orphan[0]["distributed"], 50)
+		self.assertEqual(orphan[0]["remaining"], -50)
+		self.assertEqual(balances["distributed_total"], 50)
+
 	def test_guard_allows_a_save_that_keeps_every_box(self):
 		"""Editing a shipment for an unrelated reason must not be refused
 		because of a manifest it isn't touching — and a migration that attaches
