@@ -36,6 +36,41 @@ def _ensure_group() -> str:
 	return ITEM_GROUP
 
 
+def ensure_item(description: str, direction: str | None = None) -> str | None:
+	"""Find or create the catalogue Item a free-text description meant.
+
+	Matching is on the name as typed. The client's sheet shortens names
+	inconsistently ("Hen Leg Quarter" vs "US Hen Leg Quarter"), so anything
+	unmatched becomes its own item rather than being guessed into the wrong one —
+	merging two items later is easy, un-merging is not.
+
+	Shared by the opening-data importer and the packages→contents patch so a
+	fresh install and a migrated site end up with the same catalogue.
+	"""
+	description = (description or "").strip()
+	if not description:
+		return None
+
+	existing = frappe.db.get_value("Item", {"item_name": description, "item_group": ITEM_GROUP})
+	if existing:
+		return existing
+
+	_ensure_group()
+	item = frappe.new_doc("Item")
+	item.item_code = description[:140]
+	item.item_name = description
+	item.item_group = ITEM_GROUP
+	item.is_stock_item = 0
+	item.is_sales_item = 1
+	item.is_purchase_item = 1
+	item.stock_uom = "Nos"
+	if frappe.db.has_column("Item", "bwm_trade_direction"):
+		item.bwm_trade_direction = direction if direction in ("Import", "Export") else "Both"
+	item.flags.ignore_permissions = True
+	item.insert(ignore_permissions=True)
+	return item.name
+
+
 @frappe.whitelist()
 def list_items(search=None, direction=None, limit=50):
 	"""The catalogue, optionally narrowed to what a direction can carry.

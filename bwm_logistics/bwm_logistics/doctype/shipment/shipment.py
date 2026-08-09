@@ -20,6 +20,148 @@ MILESTONE_STATUS = {
 	"Delivered": "Delivered",
 }
 
+TRADING = "Own Goods (Trading)"
+
+MANIFEST_FIELDS = [
+	"parent",
+	"idx",
+	"item",
+	"description",
+	"qty",
+	"unit",
+	"weight_kg",
+	"declared_value",
+	"customer",
+	"customer_name",
+]
+
+
+# ─── The manifest ────────────────────────────────────────────────────────────
+# Model B keeps the packing list on the box, not the booking. So "what is this
+# shipment carrying" is a question about its containers, narrowed to whose
+# booking it is — and these three functions are the only place that answers it.
+# Totals, stock balances, the distribution guard and the portal all come
+# through here, which is what stops them drifting apart the way they did while
+# each read `Shipment.packages` for itself.
+
+
+def manifest_lines(containers: list[str], customer: str | None = None) -> list[dict]:
+	"""The goods one party has inside the given boxes.
+
+	`customer=None` means ours — the untagged lines. Pass a customer and you
+	get theirs and nobody else's, which is the whole reason the tag exists:
+	billing one customer out of a consolidated box is this same call with a
+	different argument, and the portal is this call with the session's customer.
+	"""
+	containers = [c for c in containers if c]
+	if not containers:
+		return []
+
+	filters = {"parenttype": "Container", "parent": ("in", containers)}
+	# An untagged line is ours. "" and NULL both occur — a Link cleared in the
+	# UI stores "", one never set stores NULL — so match on unset, not on "".
+	filters["customer"] = customer if customer else ("is", "not set")
+
+	rows = frappe.get_all(
+		"Container Content", filters=filters, fields=MANIFEST_FIELDS, order_by="parent asc, idx asc"
+	)
+	numbers = dict(
+		frappe.get_all(
+			"Container",
+			filters={"name": ("in", containers)},
+			fields=["name", "container_no"],
+			as_list=True,
+		)
+	)
+	# Hold the order the shipment lists its boxes in, not alphabetical name order.
+	position = {name: i for i, name in enumerate(containers)}
+	rows.sort(key=lambda r: (position.get(r.parent, 0), r.idx or 0))
+	for row in rows:
+		row["container"] = row.parent
+		row["container_no"] = numbers.get(row.parent)
+		row["description"] = row.description or row.item
+	return rows
+
+
+def shipment_boxes(shipment: str) -> list[str]:
+	"""The containers a booking rides in, in the order they were added."""
+	return frappe.get_all(
+		"Shipment Container",
+		filters={"parenttype": "Shipment", "parent": shipment},
+		pluck="container",
+		order_by="idx asc",
+	)
+
+
+def shipment_manifest(shipment: str) -> list[dict]:
+	"""What one booking is carrying, resolved from its boxes."""
+	info = frappe.db.get_value("Shipment", shipment, ["shipment_type", "customer"], as_dict=True)
+	if not info:
+		return []
+	owner = None if (info.shipment_type or "Customer Cargo") == TRADING else info.customer
+	return manifest_lines(shipment_boxes(shipment), owner)
+
+
+def manifests_for(shipments: list[str]) -> dict[str, list[dict]]:
+	"""Every booking's manifest in a fixed number of queries.
+
+	The Stock page asks for all trading bookings at once; resolving them one at
+	a time is three queries each. Same answer as shipment_manifest(), batched.
+	"""
+	shipments = [s for s in shipments if s]
+	if not shipments:
+		return {}
+
+	owners = {
+		s.name: (None if (s.shipment_type or "Customer Cargo") == TRADING else s.customer)
+		for s in frappe.get_all(
+			"Shipment",
+			filters={"name": ("in", shipments)},
+			fields=["name", "shipment_type", "customer"],
+		)
+	}
+	boxes: dict[str, list[str]] = {s: [] for s in shipments}
+	for row in frappe.get_all(
+		"Shipment Container",
+		filters={"parenttype": "Shipment", "parent": ("in", shipments)},
+		fields=["parent", "container"],
+		order_by="parent asc, idx asc",
+	):
+		if row.container:
+			boxes[row.parent].append(row.container)
+
+	every_box = sorted({c for names in boxes.values() for c in names})
+	if not every_box:
+		return {s: [] for s in shipments}
+
+	by_container: dict[str, list[dict]] = {c: [] for c in every_box}
+	numbers = dict(
+		frappe.get_all(
+			"Container", filters={"name": ("in", every_box)}, fields=["name", "container_no"], as_list=True
+		)
+	)
+	for row in frappe.get_all(
+		"Container Content",
+		filters={"parenttype": "Container", "parent": ("in", every_box)},
+		fields=MANIFEST_FIELDS,
+		order_by="parent asc, idx asc",
+	):
+		row["container"] = row.parent
+		row["container_no"] = numbers.get(row.parent)
+		row["description"] = row.description or row.item
+		by_container[row.parent].append(row)
+
+	out = {}
+	for name in shipments:
+		owner = owners.get(name)
+		out[name] = [
+			row
+			for box in boxes[name]
+			for row in by_container.get(box, [])
+			if (row.customer or None) == (owner or None)
+		]
+	return out
+
 
 class Shipment(Document):
 	def autoname(self):
@@ -30,7 +172,14 @@ class Shipment(Document):
 
 	def is_trading(self) -> bool:
 		# NULL-safe: rows created before shipment_type existed are Customer Cargo.
-		return (self.shipment_type or "Customer Cargo") == "Own Goods (Trading)"
+		return (self.shipment_type or "Customer Cargo") == TRADING
+
+	def manifest(self) -> list[dict]:
+		"""The goods this booking carries — its boxes' lines, narrowed to whose
+		booking it is. Reads the in-memory container rows so it is correct
+		during validate(), before the table has been written."""
+		owner = None if self.is_trading() else self.customer
+		return manifest_lines([r.container for r in self.containers if r.container], owner)
 
 	def validate(self):
 		self.validate_customer()
@@ -78,8 +227,8 @@ class Shipment(Document):
 			self.direction = frappe.db.get_value("Container", self.container, "direction")
 
 	def check_distribution_products(self):
-		"""Distribution Entries reference packages by description — block
-		removing/renaming a package that already has recorded distributions."""
+		"""Distribution Entries name a product off the manifest — block
+		detaching the box whose goods already have distributions recorded."""
 		if self.is_new() or not frappe.db.exists("DocType", "Distribution Entry"):
 			return
 		products = frappe.get_all(
@@ -87,20 +236,25 @@ class Shipment(Document):
 		)
 		if not products:
 			return
-		have = {(p.description or "").strip().lower() for p in self.packages}
+		have = {(line["description"] or "").strip().lower() for line in self.manifest()}
 		missing = sorted({p for p in products if (p or "").strip().lower() not in have})
 		if missing:
 			frappe.throw(
 				_(
-					"Cannot remove or rename packages that already have distributions recorded: {0}. Delete their distribution entries first."
+					"These goods have distributions recorded but are no longer on this shipment's containers: {0}. Put the container back, or delete those distribution entries first."
 				).format(", ".join(missing))
 			)
 
 	def compute_totals(self):
-		self.total_packages = sum((p.qty or 0) for p in self.packages)
-		self.total_weight_kg = sum((p.weight_kg or 0) * (p.qty or 1) for p in self.packages)
-		self.total_volume_cbm = sum((p.volume_cbm or 0) * (p.qty or 1) for p in self.packages)
-		self.total_declared_value = sum((p.declared_value or 0) for p in self.packages)
+		# Off the manifest, not off `packages` — that table is retired (kept
+		# only so move_packages_to_containers stays reversible) and reading it
+		# here is what left every new booking showing "0 packages".
+		lines = self.manifest()
+		self.total_packages = sum((line["qty"] or 0) for line in lines)
+		self.total_weight_kg = sum((line["weight_kg"] or 0) * (line["qty"] or 1) for line in lines)
+		self.total_declared_value = sum((line["declared_value"] or 0) for line in lines)
+		# total_volume_cbm has no source on a container line and nothing renders
+		# it — left untouched rather than zeroed over historical data.
 		self.total_charges = sum((c.amount or 0) for c in self.charges)
 
 	def apply_milestone(self, milestone: str):

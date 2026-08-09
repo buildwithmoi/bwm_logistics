@@ -31,6 +31,34 @@ def _make_customer(name):
 	return doc.name
 
 
+def _cargo_shipment(customer, lines, direction="Import"):
+	"""A customer-cargo booking carrying `lines` in a box of its own.
+
+	The manifest lives on the container (Model B), so a booking's goods are
+	always reached through a box — there is no shipment-level packing list.
+	"""
+	from bwm_logistics.api.items import ensure_item
+
+	box = frappe.get_doc(
+		{
+			"doctype": "Container",
+			"direction": direction,
+			"contents": [
+				dict(line, item=ensure_item(line["description"], direction), customer=customer)
+				for line in lines
+			],
+		}
+	).insert(ignore_permissions=True)
+	return frappe.get_doc(
+		{
+			"doctype": "Shipment",
+			"customer": customer,
+			"direction": direction,
+			"containers": [{"container": box.name}],
+		}
+	).insert(ignore_permissions=True)
+
+
 class TestInstall(IntegrationTestCase):
 	def test_roles_created(self):
 		from bwm_logistics.install import LOGISTICS_ROLES, ensure_roles
@@ -57,24 +85,43 @@ class TestConsolidationFlow(IntegrationTestCase):
 		after_install()
 
 	def test_cascade_and_tracking(self):
+		from bwm_logistics.api.items import ensure_item
+
+		c1 = _make_customer("Test Cascade Customer A")
+		c2 = _make_customer("Test Cascade Customer B")
+
+		# One consolidated box, each line tagged with whose goods it is.
 		container = frappe.get_doc(
 			{
 				"doctype": "Container",
 				"direction": "Import",
 				"container_no": "TSTU3054383",
+				"contents": [
+					{
+						"item": ensure_item("Box", "Import"),
+						"description": "Box",
+						"qty": 2,
+						"weight_kg": 10,
+						"customer": c1,
+					},
+					{
+						"item": ensure_item("Barrel", "Import"),
+						"description": "Barrel",
+						"qty": 1,
+						"weight_kg": 50,
+						"customer": c2,
+					},
+				],
 			}
 		).insert(ignore_permissions=True)
 		self.assertTrue(container.milestone_template, "default template not applied")
 
-		c1 = _make_customer("Test Cascade Customer A")
-		c2 = _make_customer("Test Cascade Customer B")
 		s1 = frappe.get_doc(
 			{
 				"doctype": "Shipment",
 				"customer": c1,
 				"direction": "Import",
-				"container": container.name,
-				"packages": [{"description": "Box", "qty": 2, "weight_kg": 10}],
+				"containers": [{"container": container.name}],
 			}
 		).insert(ignore_permissions=True)
 		s2 = frappe.get_doc(
@@ -82,14 +129,15 @@ class TestConsolidationFlow(IntegrationTestCase):
 				"doctype": "Shipment",
 				"customer": c2,
 				"direction": "Import",
-				"container": container.name,
-				"packages": [{"description": "Barrel", "qty": 1, "weight_kg": 50}],
+				"containers": [{"container": container.name}],
 			}
 		).insert(ignore_permissions=True)
 
-		# totals
+		# Totals come off each booking's own lines in the shared box.
 		self.assertEqual(s1.total_packages, 2)
 		self.assertEqual(s1.total_weight_kg, 20)
+		self.assertEqual(s2.total_packages, 1)
+		self.assertEqual(s2.total_weight_kg, 50)
 
 		# container-wide milestone cascades to both shipments
 		event = frappe.get_doc(
@@ -387,17 +435,13 @@ class TestRateCards(IntegrationTestCase):
 		).insert(ignore_permissions=True)
 
 		customer = _make_customer("Rate Card Customer")
-		ship = frappe.get_doc(
-			{
-				"doctype": "Shipment",
-				"customer": customer,
-				"direction": "Import",
-				"packages": [
-					{"description": "Barrel", "qty": 2, "weight_kg": 40},
-					{"description": "Box", "qty": 1, "weight_kg": 10},
-				],
-			}
-		).insert(ignore_permissions=True)
+		ship = _cargo_shipment(
+			customer,
+			[
+				{"description": "Barrel", "qty": 2, "weight_kg": 40},
+				{"description": "Box", "qty": 1, "weight_kg": 10},
+			],
+		)
 
 		charges = card.compute_charges(ship)
 		by_type = {c["charge_type"]: c["amount"] for c in charges}
@@ -411,14 +455,7 @@ class TestRateCards(IntegrationTestCase):
 		self.assertEqual(result["total_charges"], 560)
 
 		# minimum enforced on a light shipment
-		light = frappe.get_doc(
-			{
-				"doctype": "Shipment",
-				"customer": customer,
-				"direction": "Import",
-				"packages": [{"description": "Envelope", "qty": 1, "weight_kg": 2}],
-			}
-		).insert(ignore_permissions=True)
+		light = _cargo_shipment(customer, [{"description": "Envelope", "qty": 1, "weight_kg": 2}])
 		light_charges = {c["charge_type"]: c["amount"] for c in card.compute_charges(light)}
 		self.assertEqual(light_charges["Freight"], 100)
 
@@ -633,12 +670,33 @@ class TestStockDistribution(IntegrationTestCase):
 		after_install()
 
 	def _trading(self, qty=100, unit="PIECES"):
+		"""An own-goods booking carrying `qty` in its own box.
+
+		The manifest goes on the container, not the shipment — a booking with
+		no box has nothing to distribute, which is the point of Model B.
+		"""
+		from bwm_logistics.api.items import ensure_item
+
+		box = frappe.get_doc(
+			{
+				"doctype": "Container",
+				"direction": "Import",
+				"contents": [
+					{
+						"item": ensure_item("CI Frozen Goods", "Import"),
+						"description": "CI Frozen Goods",
+						"qty": qty,
+						"unit": unit,
+					}
+				],
+			}
+		).insert(ignore_permissions=True)
 		return frappe.get_doc(
 			{
 				"doctype": "Shipment",
 				"shipment_type": "Own Goods (Trading)",
 				"direction": "Import",
-				"packages": [{"description": "CI Frozen Goods", "qty": qty, "unit": unit}],
+				"containers": [{"container": box.name}],
 			}
 		).insert(ignore_permissions=True)
 
@@ -657,10 +715,13 @@ class TestStockDistribution(IntegrationTestCase):
 		from bwm_logistics.api.stock import shipment_balances
 
 		ship = self._trading(qty=100, unit="CARTONS")
-		self.assertEqual(ship.packages[0].unit, "CARTONS")
+		# The totals are derived from the box's manifest, not from the retired
+		# `packages` table — reading that is what showed "0 packages" on every
+		# booking made after Model B landed.
+		self.assertEqual(ship.total_packages, 100)
 
 		entry = self._entry(ship.name, 60)
-		self.assertEqual(entry.unit, "CARTONS")  # auto-filled from the package
+		self.assertEqual(entry.unit, "CARTONS")  # auto-filled from the manifest line
 		bal = shipment_balances(ship.name)
 		self.assertEqual(bal["lines"][0]["remaining"], 40)
 
@@ -670,29 +731,43 @@ class TestStockDistribution(IntegrationTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			self._entry(ship.name, 1, recipient="One Too Many")
 
-	def test_product_must_match_a_package(self):
+	def test_product_must_match_a_manifest_line(self):
 		ship = self._trading()
 		with self.assertRaises(frappe.ValidationError):
 			self._entry(ship.name, 1, product="Unknown Product")
 
 	def test_customer_cargo_rejected(self):
 		customer = _make_customer("CI Distribution Customer")
+		from bwm_logistics.api.items import ensure_item
+
+		box = frappe.get_doc(
+			{
+				"doctype": "Container",
+				"direction": "Import",
+				"contents": [
+					{"item": ensure_item("Box", "Import"), "description": "Box", "qty": 5, "customer": customer}
+				],
+			}
+		).insert(ignore_permissions=True)
 		cargo = frappe.get_doc(
 			{
 				"doctype": "Shipment",
 				"customer": customer,
 				"direction": "Import",
-				"packages": [{"description": "Box", "qty": 5}],
+				"containers": [{"container": box.name}],
 			}
 		).insert(ignore_permissions=True)
 		with self.assertRaises(frappe.ValidationError):
 			self._entry(cargo.name, 1, product="Box")
 
-	def test_integrity_guard_blocks_package_rename(self):
+	def test_integrity_guard_blocks_detaching_a_distributed_box(self):
+		"""The manifest moved to the container, so the way to lose a product
+		that has distributions against it is now to take the box off."""
 		ship = self._trading()
 		self._entry(ship.name, 10)
 		ship.reload()
-		ship.packages[0].description = "Renamed"
+		ship.set("containers", [])
+		ship.container = None
 		with self.assertRaises(frappe.ValidationError):
 			ship.save(ignore_permissions=True)
 

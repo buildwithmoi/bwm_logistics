@@ -35,32 +35,25 @@ def _norm(text) -> str:
 
 
 # ─── Balances ────────────────────────────────────────────────────────────────
-def shipment_balances(shipment: str) -> dict:
-	"""Received / distributed / remaining per product line (pure helper)."""
-	packages = frappe.get_all(
-		"Shipment Package",
-		filters={"parenttype": "Shipment", "parent": shipment},
-		fields=["description", "qty", "unit"],
-		order_by="idx",
-	)
+def _balances(manifest: list[dict], distributed: list[dict]) -> dict:
+	"""Fold one shipment's manifest and its distributions into per-product
+	received / distributed / remaining."""
 	lines = {}
-	for p in packages:
-		key = _norm(p.description)
+	for row in manifest:
+		key = _norm(row["description"])
 		if key not in lines:
 			lines[key] = {
-				"product": (p.description or "").strip(),
-				"unit": p.unit or "PIECES",
+				"product": (row["description"] or "").strip(),
+				"unit": row["unit"] or "PIECES",
 				"received": 0.0,
 				"distributed": 0.0,
 			}
-		lines[key]["received"] += flt(p.qty)
+		lines[key]["received"] += flt(row["qty"])
 
-	for r in frappe.get_all(
-		"Distribution Entry", filters={"shipment": shipment}, fields=["product", "qty"]
-	):
-		key = _norm(r.product)
+	for r in distributed:
+		key = _norm(r["product"])
 		if key in lines:
-			lines[key]["distributed"] += flt(r.qty)
+			lines[key]["distributed"] += flt(r["qty"])
 
 	out_lines = []
 	for line in lines.values():
@@ -74,6 +67,39 @@ def shipment_balances(shipment: str) -> dict:
 		"distributed_total": round(sum(x["distributed"] for x in out_lines), 2),
 		"remaining_total": round(sum(x["remaining"] for x in out_lines), 2),
 	}
+
+
+def shipment_balances(shipment: str) -> dict:
+	"""Received / distributed / remaining per product line (pure helper).
+
+	"Received" is the shipment's manifest, which lives on its containers — see
+	shipment.manifest_lines().
+	"""
+	from bwm_logistics.bwm_logistics.doctype.shipment.shipment import shipment_manifest
+
+	return _balances(
+		shipment_manifest(shipment),
+		frappe.get_all("Distribution Entry", filters={"shipment": shipment}, fields=["product", "qty"]),
+	)
+
+
+def balances_for(shipments: list[str]) -> dict[str, dict]:
+	"""Balances for many shipments without a query storm — the Stock page wants
+	every trading booking at once."""
+	from bwm_logistics.bwm_logistics.doctype.shipment.shipment import manifests_for
+
+	shipments = [s for s in shipments if s]
+	if not shipments:
+		return {}
+	manifests = manifests_for(shipments)
+	spent: dict[str, list[dict]] = {s: [] for s in shipments}
+	for row in frappe.get_all(
+		"Distribution Entry",
+		filters={"shipment": ("in", shipments)},
+		fields=["shipment", "product", "qty"],
+	):
+		spent[row.shipment].append(row)
+	return {s: _balances(manifests.get(s, []), spent[s]) for s in shipments}
 
 
 @frappe.whitelist()
@@ -174,6 +200,7 @@ def stock_overview():
 
 	incoming, arrived = [], []
 	products = defaultdict(lambda: {"received": 0.0, "distributed": 0.0})
+	every_balance = balances_for([s.name for s in trading])
 	for s in trading:
 		cont = container_info.get(s.container)
 		row = {
@@ -184,7 +211,7 @@ def stock_overview():
 			"container_no": cont and cont.container_no,
 			"eta": cont and str(cont.eta or "") or None,
 		}
-		balances = shipment_balances(s.name)
+		balances = every_balance[s.name]
 		row.update(
 			{
 				"received": balances["received_total"],

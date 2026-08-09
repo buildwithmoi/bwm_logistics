@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { settle } from "./settle";
+import { measureOverflow } from "./overflow";
 
 // The model change, exercised the way an operator would: put goods in a box,
 // tag whose they are, then book a shipment that rides in it.
@@ -79,5 +80,67 @@ test.describe("shipment is the booking", () => {
 		await page.getByRole("button", { name: /Customer Cargo/ }).click();
 		await page.waitForTimeout(250);
 		await expect(page.getByText("Consignee (who receives it)")).toBeVisible();
+	});
+});
+
+// Stock is counted off the container manifest now. Before this, the Goods
+// section read Shipment.packages — a table nothing writes to any more — so a
+// booking made with the new form reported nothing received and offered nothing
+// to distribute.
+test.describe("goods are counted off the box", () => {
+	/** The own-goods booking carrying the most, and what the list says it holds. */
+	async function busiestOwnGoods(page: Page) {
+		await open(page, "/logistics/shipments");
+		return page.evaluate(async () => {
+			const res = await fetch("/api/method/bwm_logistics.api.shipments.list_shipments?limit=100", {
+				headers: { Accept: "application/json" },
+			});
+			const body = await res.json();
+			const rows: Array<{ name: string; shipment_type?: string; total_packages?: number }> =
+				body?.message?.rows || [];
+			const own = rows
+				.filter((r) => r.shipment_type === "Own Goods (Trading)")
+				.sort((a, b) => (b.total_packages || 0) - (a.total_packages || 0));
+			return own[0] ? { name: own[0].name, total: own[0].total_packages || 0 } : null;
+		});
+	}
+
+	async function openGoods(page: Page, name: string) {
+		await open(page, `/logistics/shipments/${name}`);
+		const goods = page.getByRole("button", { name: "Goods", exact: true });
+		if (!(await goods.count())) return false;
+		await goods.click();
+		await page.waitForTimeout(500);
+		return true;
+	}
+
+	test("an own-goods booking reports what its container received", async ({ page }) => {
+		const ship = await busiestOwnGoods(page);
+		test.skip(!ship || ship.total <= 0, "no own-goods booking with goods on this site");
+		test.skip(!(await openGoods(page, ship!.name)), "shipment has no Goods section");
+
+		await expect(page.getByText("Stock & distribution")).toBeVisible();
+		// "N of M distributed · X left". M is the manifest total, which must be
+		// the same number the list shows — both come off the container now, and
+		// reading the retired `packages` table made this 0 on every new booking.
+		// The section summary, not a per-product caption: only the summary
+		// carries the "· N left" tail.
+		const summary = await page.getByText(/of [\d,.]+ distributed ·/).innerText();
+		const received = Number(summary.match(/of ([\d,.]+) distributed/)?.[1]?.replace(/,/g, "") || 0);
+		expect(received, `panel says ${received} received, the list says ${ship!.total}`).toBe(ship!.total);
+	});
+
+	test("the distribution ledger fits a phone", async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		const ship = await busiestOwnGoods(page);
+		test.skip(!ship, "no own-goods booking on this site");
+		test.skip(!(await openGoods(page, ship!.name)), "shipment has no Goods section");
+
+		// It used to be a table with min-w-[680px], which a phone had to scroll.
+		const overflow = await measureOverflow(page);
+		expect(overflow.px, `overflows by ${overflow.px}px: ${overflow.offenders.join(", ")}`).toBeLessThanOrEqual(1);
+
+		fs.mkdirSync(`${SHOT_DIR}/model-b`, { recursive: true });
+		await page.screenshot({ path: `${SHOT_DIR}/model-b/shipment-goods.png`, fullPage: true });
 	});
 });

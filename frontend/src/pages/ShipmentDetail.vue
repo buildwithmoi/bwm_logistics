@@ -16,7 +16,7 @@ import Sheet from "@/components/ui/Sheet.vue";
 import Badge from "@/components/ui/Badge.vue";
 import DetailHeader from "@/components/ui/DetailHeader.vue";
 import DataList from "@/components/ui/DataList.vue";
-import SearchCombo from "@/components/ui/SearchCombo.vue";
+import ShipmentGoods from "@/components/shipment/ShipmentGoods.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
@@ -48,7 +48,6 @@ async function load() {
 	try {
 		data.value = await call<ShipmentData>("bwm_logistics.api.shipments.get_shipment", { name: name.value });
 		loadPnl();
-		loadStock();
 	} catch (e: unknown) {
 		toast.error((e as { message?: string })?.message || "Could not load shipment");
 		router.push("/shipments");
@@ -123,161 +122,6 @@ async function loadPnl() {
 		pnl.value = await call<Pnl>("bwm_logistics.api.billing.shipment_pnl", { shipment: name.value });
 	} catch {
 		/* card hidden on error */
-	}
-}
-
-// ── stock & distribution (trading shipments only) ──────────────────────────
-interface BalanceLine {
-	product: string;
-	unit: string;
-	received: number;
-	distributed: number;
-	remaining: number;
-}
-interface Balances {
-	lines: BalanceLine[];
-	received_total: number;
-	distributed_total: number;
-	remaining_total: number;
-}
-interface DistRow {
-	name: string;
-	product: string;
-	qty: number;
-	unit?: string;
-	recipient: string;
-	customer?: string | null;
-	destination?: string;
-	unit_price?: number;
-	amount?: number;
-	delivery_date?: string;
-	sales_invoice?: string | null;
-}
-const balances = ref<Balances | null>(null);
-const distributions = ref<DistRow[]>([]);
-const canDistribute = computed(() => session.can("stock", "create") || session.can("shipments", "edit"));
-const fmtQty = (v?: number) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-
-async function loadStock() {
-	if (data.value?.shipment_type !== "Own Goods (Trading)") return;
-	try {
-		const [bal, list] = await Promise.all([
-			call<Balances>("bwm_logistics.api.stock.shipment_stock_balance", { shipment: name.value }),
-			call<{ rows: DistRow[] }>("bwm_logistics.api.stock.list_distributions", {
-				shipment: name.value,
-				limit: 100,
-			}),
-		]);
-		balances.value = bal;
-		distributions.value = list.rows;
-	} catch {
-		/* card hidden on error */
-	}
-}
-
-const distOpen = ref(false);
-const distSaving = ref(false);
-const distForm = reactive({
-	product: "",
-	qty: null as number | null,
-	recipient: "",
-	customer: "" as string | null,
-	destination: "",
-	unit_price: null as number | null,
-	delivery_date: new Date().toISOString().slice(0, 10),
-	notes: "",
-});
-const distCustomerDisplay = ref<string | null>(null);
-
-interface CustomerHit extends Record<string, unknown> {
-	name: string;
-	customer_name: string;
-	mobile_no?: string;
-}
-async function fetchCustomers(q: string): Promise<CustomerHit[]> {
-	const res = await call<{ rows: CustomerHit[] }>("bwm_logistics.api.customers.list_customers", {
-		search: q || null,
-		limit: 20,
-	});
-	return res.rows;
-}
-
-const productOptions = computed(() =>
-	(balances.value?.lines || []).map((l) => ({
-		value: l.product,
-		label: `${l.product} — ${fmtQty(l.remaining)} ${l.unit.toLowerCase()} left`,
-	})),
-);
-const selectedLine = computed(() =>
-	balances.value?.lines.find((l) => l.product === distForm.product),
-);
-
-function openDist() {
-	const firstOpen = balances.value?.lines.find((l) => l.remaining > 0) || balances.value?.lines[0];
-	distForm.product = firstOpen?.product || "";
-	distForm.qty = null;
-	distForm.recipient = "";
-	distForm.customer = "";
-	distCustomerDisplay.value = null;
-	distForm.destination = "";
-	distForm.unit_price = null;
-	distForm.notes = "";
-	distOpen.value = true;
-}
-
-async function saveDistribution() {
-	if (!distForm.product || !distForm.qty || !distForm.recipient.trim()) {
-		toast.warning("Product, quantity and recipient are required");
-		return;
-	}
-	distSaving.value = true;
-	try {
-		await call("bwm_logistics.api.stock.record_distribution", {
-			payload: {
-				shipment: name.value,
-				product: distForm.product,
-				qty: distForm.qty,
-				recipient: distForm.recipient,
-				customer: distForm.customer || null,
-				destination: distForm.destination || null,
-				unit_price: distForm.unit_price || null,
-				delivery_date: distForm.delivery_date || null,
-				notes: distForm.notes || null,
-			},
-		});
-		toast.success("Distribution recorded");
-		distOpen.value = false;
-		await loadStock();
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not record distribution");
-	} finally {
-		distSaving.value = false;
-	}
-}
-
-async function deleteDistribution(row: DistRow) {
-	try {
-		await call("bwm_logistics.api.stock.delete_distribution", { name: row.name });
-		toast.info("Entry removed");
-		await loadStock();
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not delete entry");
-	}
-}
-
-const invoicingDist = ref("");
-async function invoiceDistribution(row: DistRow) {
-	invoicingDist.value = row.name;
-	try {
-		const res = await call<{ sales_invoice: string }>("bwm_logistics.api.stock.invoice_distribution", {
-			name: row.name,
-		});
-		toast.success(`Invoice ${res.sales_invoice} created`);
-		await Promise.all([loadStock(), loadPnl()]);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not invoice entry");
-	} finally {
-		invoicingDist.value = "";
 	}
 }
 
@@ -596,88 +440,7 @@ async function makeInvoice() {
 					</template>
 
 					<template v-else-if="section === 'goods'">
-<!-- ── Stock & distribution (trading shipments) ─────────────────── -->
-	<div v-if="isTrading && balances" class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-		<div class="mb-4 flex flex-wrap items-center gap-2">
-			<h2 class="label-caps min-w-0 flex-1">Stock & distribution</h2>
-			<span class="text-sm tabular-nums text-muted-foreground">
-				{{ fmtQty(balances.distributed_total) }} of {{ fmtQty(balances.received_total) }} distributed ·
-				<b class="text-gray-900">{{ fmtQty(balances.remaining_total) }} left</b>
-			</span>
-			<Button v-if="canDistribute" size="sm" @click="openDist">Record distribution</Button>
-		</div>
-
-		<!-- Per-product balance bars -->
-		<div class="mb-5 space-y-2.5">
-			<div v-for="l in balances.lines" :key="l.product" class="flex items-center gap-3">
-				<div class="w-52 min-w-0 shrink-0 sm:w-72">
-					<div class="truncate text-sm font-medium">{{ l.product }}</div>
-					<div class="text-xs text-muted-foreground">{{ fmtQty(l.received) }} {{ l.unit.toLowerCase() }} received</div>
-				</div>
-				<div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-					<div
-						class="h-full rounded-full bg-brand-500"
-						:style="{ width: `${Math.min(100, (l.distributed / Math.max(l.received, 1)) * 100)}%` }"
-					></div>
-				</div>
-				<span class="w-28 shrink-0 text-right text-sm font-semibold tabular-nums" :class="l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'">
-					{{ fmtQty(l.remaining) }} left
-				</span>
-			</div>
-		</div>
-
-		<!-- Entries -->
-		<div v-if="!distributions.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-			Nothing distributed yet — record where the goods go (a truck, a buyer, or storage).
-		</div>
-		<div v-else class="overflow-x-auto">
-			<table class="w-full min-w-[680px] text-sm">
-				<thead>
-					<tr class="text-left">
-						<th class="label-caps pb-2 pr-4">Date</th>
-						<th class="label-caps pb-2 pr-4">Product</th>
-						<th class="label-caps pb-2 pr-4 text-right">Qty</th>
-						<th class="label-caps pb-2 pr-4">Recipient</th>
-						<th class="label-caps pb-2 pr-4">Destination</th>
-						<th class="label-caps pb-2 pr-4 text-right">Amount</th>
-						<th class="label-caps pb-2 text-right">Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="d in distributions" :key="d.name" class="border-t border-gray-100">
-						<td class="py-2.5 pr-4 tabular-nums text-muted-foreground">{{ fmtDate(d.delivery_date) }}</td>
-						<td class="py-2.5 pr-4">{{ d.product }}</td>
-						<td class="py-2.5 pr-4 text-right tabular-nums">{{ fmtQty(d.qty) }} {{ (d.unit || "").toLowerCase() }}</td>
-						<td class="py-2.5 pr-4 font-medium">{{ d.recipient }}</td>
-						<td class="py-2.5 pr-4 text-muted-foreground">{{ d.destination || "—" }}</td>
-						<td class="py-2.5 pr-4 text-right tabular-nums">{{ d.amount ? fmtMoney(d.amount) : "—" }}</td>
-						<td class="py-2.5 text-right">
-							<span class="inline-flex items-center gap-2">
-								<RouterLink
-									v-if="d.sales_invoice"
-									:to="`/billing?tab=sales`"
-									class="text-xs font-medium text-emerald-700 hover:underline"
-								>{{ d.sales_invoice }}</RouterLink>
-								<Button
-									v-else-if="canBill && d.customer && (d.unit_price || 0) > 0"
-									size="sm"
-									variant="outline"
-									:loading="invoicingDist === d.name"
-									@click="invoiceDistribution(d)"
-								>Invoice</Button>
-								<button
-									v-if="canDistribute && !d.sales_invoice"
-									type="button"
-									class="text-xs font-medium text-gray-400 hover:text-red-600"
-									@click="deleteDistribution(d)"
-								>Remove</button>
-							</span>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-	</div>
+						<ShipmentGoods :shipment="name" :can-bill="canBill" @invoiced="loadPnl" />
 					</template>
 
 					<template v-else>
@@ -714,63 +477,6 @@ async function makeInvoice() {
 					<div class="flex justify-end gap-2">
 						<Button variant="outline" @click="rateOpen = false">Cancel</Button>
 						<Button :disabled="!rateCards.length" :loading="rateApplying" @click="applyRate">Apply</Button>
-					</div>
-				</template>
-			</Dialog>
-
-			<!-- ── Record distribution dialog ────────────────────────────────── -->
-			<Dialog v-model:open="distOpen" title="Record distribution" size="wide">
-				<div class="space-y-4">
-					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div class="space-y-1.5">
-							<Label required>Product</Label>
-							<Select v-model="distForm.product" :options="productOptions" />
-						</div>
-						<div class="space-y-1.5">
-							<Label required>Quantity</Label>
-							<Input v-model.number="distForm.qty" type="number" min="0" :placeholder="selectedLine ? `${fmtQty(selectedLine.remaining)} remaining` : 'Qty'" />
-							<p v-if="selectedLine && (distForm.qty || 0) > selectedLine.remaining" class="text-xs font-medium text-red-600">
-								Only {{ fmtQty(selectedLine.remaining) }} {{ selectedLine.unit.toLowerCase() }} left on this line.
-							</p>
-						</div>
-						<div class="space-y-1.5">
-							<Label required>Recipient</Label>
-							<Input v-model="distForm.recipient" placeholder='e.g. "Truck 1", "Ella", "Storage"' />
-						</div>
-						<div class="space-y-1.5">
-							<Label>Destination</Label>
-							<Input v-model="distForm.destination" placeholder="Where it's headed (optional)" />
-						</div>
-						<div class="space-y-1.5">
-							<Label>Delivery date</Label>
-							<Input v-model="distForm.delivery_date" type="date" />
-						</div>
-						<div class="space-y-1.5">
-							<Label>Unit price (optional)</Label>
-							<Input v-model.number="distForm.unit_price" type="number" min="0" placeholder="For invoicing later" />
-						</div>
-					</div>
-					<div class="space-y-1.5">
-						<Label>Customer (optional — enables invoicing)</Label>
-						<SearchCombo
-							v-model="distForm.customer"
-							v-model:display-value="distCustomerDisplay"
-							:fetcher="fetchCustomers"
-							value-key="name"
-							label-key="customer_name"
-							sublabel-key="mobile_no"
-							placeholder="Search customer… (leave empty for trucks/storage)"
-						/>
-					</div>
-					<div class="space-y-1.5">
-						<Label>Notes</Label>
-						<Textarea v-model="distForm.notes" :rows="2" placeholder="Optional note" />
-					</div>
-				</div>
-				<template #footer>
-					<div class="flex justify-end gap-2">
-						<Button variant="outline" @click="distOpen = false">Cancel</Button>
-						<Button :loading="distSaving" @click="saveDistribution">Record</Button>
 					</div>
 				</template>
 			</Dialog>

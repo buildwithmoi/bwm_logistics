@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { isBlank } from "@/lib/format";
 
 // Lean list primitive in the house style.
 //
@@ -22,6 +23,17 @@ export interface Column {
 	mobileHidden?: boolean;
 	/** Keep the cell on one line in the table view (dates, ids, amounts). */
 	nowrap?: boolean;
+	/**
+	 * Drop this line from a card when the row has nothing to say for it. A
+	 * table column has to hold its place in the grid; a card doesn't, so
+	 * "Destination —" is just a row of noise.
+	 *
+	 * `true` uses isBlank(row[key]). Pass a predicate when blank means
+	 * something else for this column — an uninvoiced entry has an amount of 0,
+	 * not an empty one. Opt-in either way, because a slot can render something
+	 * meaningful out of a field that looks empty.
+	 */
+	hideWhenEmpty?: boolean | ((row: Record<string, unknown>) => boolean);
 }
 
 const props = defineProps<{
@@ -59,6 +71,12 @@ const detailCols = computed(() =>
 	props.columns.filter((c) => c !== primaryCol.value && !c.trailing && !c.mobileHidden && c.label),
 );
 const rowId = (row: Record<string, unknown>) => String(row[props.rowKey || "name"]);
+/** The detail lines a given card actually has something to say. */
+const cardCols = (row: Record<string, unknown>) =>
+	detailCols.value.filter((c) => {
+		if (!c.hideWhenEmpty) return true;
+		return typeof c.hideWhenEmpty === "function" ? !c.hideWhenEmpty(row) : !isBlank(row[c.key]);
+	});
 </script>
 
 <template>
@@ -145,8 +163,8 @@ const rowId = (row: Record<string, unknown>) => String(row[props.rowKey || "name
 					</div>
 				</div>
 
-				<dl v-if="detailCols.length" class="mt-2 space-y-1">
-					<div v-for="c in detailCols" :key="c.key" class="flex items-baseline gap-3 text-[13px]">
+				<dl v-if="cardCols(row).length" class="mt-2 space-y-1">
+					<div v-for="c in cardCols(row)" :key="c.key" class="flex items-baseline gap-3 text-[13px]">
 						<dt class="w-24 shrink-0 truncate text-muted-foreground">{{ c.label }}</dt>
 						<dd class="min-w-0 flex-1 truncate" :class="c.numeric && 'tabular-nums'">
 							<slot :name="`cell-${c.key}`" :row="row" :value="row[c.key]">

@@ -46,23 +46,21 @@ class DistributionEntry(Document):
 
 	def validate_against_balance(self):
 		"""Line-level guard: total distributed per product never exceeds the
-		received qty on the shipment's matching package lines."""
-		packages = frappe.get_all(
-			"Shipment Package",
-			filters={"parenttype": "Shipment", "parent": self.shipment},
-			fields=["description", "qty", "unit"],
-		)
-		matching = [p for p in packages if _norm(p.description) == _norm(self.product)]
+		received qty on the shipment's matching manifest lines."""
+		from bwm_logistics.bwm_logistics.doctype.shipment.shipment import shipment_manifest
+
+		lines = shipment_manifest(self.shipment)
+		matching = [line for line in lines if _norm(line["description"]) == _norm(self.product)]
 		if not matching:
 			frappe.throw(
-				_("Product {0} is not on shipment {1} — it must match a package description exactly.").format(
+				_("Product {0} is not in shipment {1}'s containers — it must match a manifest line exactly.").format(
 					frappe.bold(self.product), self.shipment
 				)
 			)
 		if not self.unit:
-			self.unit = matching[0].unit or "PIECES"
+			self.unit = matching[0]["unit"] or "PIECES"
 
-		received = sum(flt(p.qty) for p in matching)
+		received = sum(flt(line["qty"]) for line in matching)
 		others = sum(
 			flt(r.qty)
 			for r in frappe.get_all(

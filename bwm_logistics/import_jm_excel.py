@@ -33,6 +33,9 @@ import os
 import frappe
 from frappe.utils import flt, getdate
 
+from bwm_logistics.api.items import ensure_item
+from bwm_logistics.bwm_logistics.doctype.shipment.shipment import manifests_for
+
 DEFAULT_FILENAME = "Stock and Distribution 1.xlsx"
 
 # The frozen opening balance shipped in the repo (written by extract()).
@@ -212,6 +215,20 @@ def load(data: dict) -> dict:
 				"notes": row.get("comment"),
 			}
 		)
+		# The manifest belongs to the box (Model B). These are the company's own
+		# goods, so the lines carry no customer tag.
+		for pkg in row["packages"]:
+			container.append(
+				"contents",
+				{
+					"item": ensure_item(pkg.get("description"), "Import"),
+					"description": pkg.get("description"),
+					"qty": pkg.get("qty") or 0,
+					"unit": pkg.get("unit") or "Nos",
+					"weight_kg": pkg.get("weight_kg"),
+					"declared_value": pkg.get("declared_value"),
+				},
+			)
 		container.flags.ignore_permissions = True
 		container.insert(ignore_permissions=True)
 		created["containers"] += 1
@@ -235,9 +252,8 @@ def load(data: dict) -> dict:
 				"doctype": "Shipment",
 				"shipment_type": "Own Goods (Trading)",
 				"direction": "Import",
-				"container": container.name,
+				"containers": [{"container": container.name}],
 				"branch": branch,
-				"packages": row["packages"],
 				"notes": "\n".join(notes) or None,
 			}
 		)
@@ -260,20 +276,17 @@ def load(data: dict) -> dict:
 			).insert(ignore_permissions=True)
 			created["events"] += 1
 
+	manifests = manifests_for([s for s in shipments if s])
 	for row in data["distributions"]:
-		# Find the trading shipment whose package matches this product — their
+		# Find the trading shipment whose manifest matches this product — their
 		# sheet shortens names ("Hen Leg Quarter" vs "US Hen Leg Quarter").
 		target, package_desc = None, None
 		for ship_name in shipments:
 			if not ship_name:
 				continue
-			for p in frappe.get_all(
-				"Shipment Package",
-				filters={"parenttype": "Shipment", "parent": ship_name},
-				fields=["description", "qty"],
-			):
-				if _norm(row["product"]) in _norm(p.description) and flt(p.qty) > 0:
-					target, package_desc = ship_name, p.description
+			for line in manifests.get(ship_name, []):
+				if _norm(row["product"]) in _norm(line["description"]) and flt(line["qty"]) > 0:
+					target, package_desc = ship_name, line["description"]
 					break
 			if target:
 				break

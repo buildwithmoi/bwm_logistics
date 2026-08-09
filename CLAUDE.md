@@ -226,8 +226,13 @@ fails the suite rather than quietly lengthening a page.
   deliberate correction — the dashboard used to carry a coloured glyph per tile.
 - **`ui/DataTable.vue` renders twice**: a table from `md` up, one stacked card
   per row below it, sharing the same `#cell-<key>` slots. Columns declare
-  `primary` (card headline), `trailing` (pinned top-right), `mobileHidden` and
-  `nowrap`. Never add a `min-w-[…]` table that a phone has to scroll.
+  `primary` (card headline), `trailing` (pinned top-right), `mobileHidden`,
+  `nowrap` and `hideWhenEmpty`. Never add a `min-w-[…]` table that a phone has
+  to scroll. `hideWhenEmpty` drops a line from a *card* when the row has nothing
+  to say for it — a table column must hold its slot in the grid, a card must
+  not, so "Destination —" is pure noise. Pass a predicate when blank means
+  something other than `isBlank`: an uninvoiced entry's amount is `0`, not
+  empty.
 - Shell: `AppShell.vue` is a single h-14 coal-900 top bar — **menu button left**
   (opens the one nav drawer, at every breakpoint), everyday tabs centre on
   desktop, **logo hard right**. No avatar menu, no Apps launcher, no "Switch to
@@ -249,7 +254,23 @@ fails the suite rather than quietly lengthening a page.
   it; `Shipment.sync_containers()` keeps it equal to the first row.
 - **`Shipment.packages` is dead but not deleted.** The field and its rows remain
   so the `move_packages_to_containers` migration is reversible. Nothing reads
-  it — don't add a caller.
+  it — don't add a caller. Note `get_shipment()` overwrites the `packages` key
+  that `as_dict()` returns, because the print-label page builds one sticker per
+  package from it.
+- **`shipment.py` owns the one manifest resolver — always go through it.**
+  `manifest_lines(containers, customer)` is "what does this party have in these
+  boxes": `customer=None` means the untagged lines, i.e. ours. On top of it sit
+  `Shipment.manifest()` (in-memory, so it is right during `validate`),
+  `shipment_manifest(name)`, and `manifests_for([names])` — the batched form,
+  for pages like Stock that ask about every booking at once.
+  Totals, stock balances, the distribution guard, the printed label and the
+  portal all resolve through these; each one used to read `Shipment.packages`
+  for itself, which is how they came to disagree. **Per-customer billing out of
+  a consolidated box is `manifest_lines()` with a different argument** — that is
+  the extension point, not a new query.
+- **A manifest line's `unit` and `description` default from the Item but are not
+  dictated by it** (`fetch_if_empty`). The same goods ship in cartons on one
+  booking and bags on the next; the line is the truth.
 - **Contents point at ERPNext `Item`** (group `Logistics Goods`), classified by
   the `bwm_trade_direction` custom field so an export box is never offered
   import-only goods. Managed at `/items`; the picker can create one inline.

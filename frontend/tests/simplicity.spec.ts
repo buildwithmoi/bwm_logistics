@@ -150,6 +150,7 @@ test.describe("customer portal never shows our costs", () => {
 		"/logistics/portal/shipments",
 		"/logistics/portal/invoices",
 		"/logistics/portal/pickups",
+		"/logistics/portal/shipments/BWM-000148",
 	]) {
 		test(`${path} leaks nothing`, async ({ page }) => {
 			// Fixtures deliberately return the forbidden keys; if the page reads
@@ -163,4 +164,28 @@ test.describe("customer portal never shows our costs", () => {
 			expect(text, "a supplier name reached the portal DOM").not.toContain("shanghai poultry co");
 		});
 	}
+
+	test("a customer sees the goods that are theirs, named", async ({ page }) => {
+		// The panel is the point of the manifest move: it used to read a table
+		// nothing writes to, so a customer saw an empty list and "0 packages".
+		await useFixtures(page, LEAKY_PORTAL);
+		await open(page, "/logistics/portal/shipments/BWM-000148");
+		await expect(page.getByText("Your goods")).toBeVisible();
+		await expect(page.getByText("Frozen chicken back")).toBeVisible();
+		await expect(page.getByText(/12\s+CARTONS/)).toBeVisible();
+	});
+
+	test("no goods on the box yet means no goods panel", async ({ page }) => {
+		await useFixtures(page, {
+			...LEAKY_PORTAL,
+			"bwm_logistics.api.portal.shipment_detail": {
+				...(LEAKY_PORTAL["bwm_logistics.api.portal.shipment_detail"] as object),
+				packages: [],
+				total_weight_kg: 0,
+			},
+		});
+		await open(page, "/logistics/portal/shipments/BWM-000148");
+		await expect(page.getByText("Tracking timeline")).toBeVisible();
+		await expect(page.getByText("Your goods")).toHaveCount(0);
+	});
 });

@@ -25,6 +25,7 @@
   },
   {
    "fetch_from": "item.item_name",
+   "fetch_if_empty": 1,
    "fieldname": "description",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -40,6 +41,7 @@
   },
   {
    "fetch_from": "item.stock_uom",
+   "fetch_if_empty": 1,
    "fieldname": "unit",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -55,6 +57,7 @@
   },
   {
    "fetch_from": "customer.customer_name",
+   "fetch_if_empty": 1,
    "fieldname": "customer_name",
    "fieldtype": "Data",
    "label": "Customer Name",

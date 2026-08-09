@@ -58,22 +58,29 @@ def shipment_detail(name):
 		"Shipment", name,
 		["name", "customer", "status", "current_milestone", "direction", "origin",
 			"destination", "delivery_address", "container", "total_packages",
-			"total_weight_kg", "total_volume_cbm", "total_charges", "sales_invoice"],
+			"total_weight_kg", "total_charges", "sales_invoice"],
 		as_dict=True,
 	)
 	if not shipment or shipment.customer != customer:
 		frappe.throw(_("Shipment not found."), frappe.DoesNotExistError)
 
 	from bwm_logistics.api.shipments import get_timeline
+	from bwm_logistics.bwm_logistics.doctype.shipment.shipment import manifest_lines, shipment_boxes
 
 	out = shipment
 	out["timeline"] = get_timeline(name)
-	out["packages"] = frappe.get_all(
-		"Shipment Package",
-		filters={"parenttype": "Shipment", "parent": name},
-		fields=["description", "qty", "weight_kg", "volume_cbm"],
-		order_by="idx",
-	)
+	# Their goods, resolved from the boxes this booking rides in and narrowed to
+	# their tag — a consolidated container never shows one customer another's
+	# cargo. Nothing here reads Shipment.packages: that table is retired.
+	out["packages"] = [
+		{
+			"description": line["description"],
+			"qty": line["qty"],
+			"unit": line["unit"],
+			"weight_kg": line["weight_kg"],
+		}
+		for line in manifest_lines(shipment_boxes(name), customer)
+	]
 	if shipment.container:
 		out["eta"] = frappe.db.get_value("Container", shipment.container, "eta")
 	if shipment.sales_invoice:

@@ -477,6 +477,30 @@ export const LEAKY_PORTAL: Record<string, unknown> = {
 		],
 		total: 1,
 	},
+	// The detail page renders the customer's goods off the container manifest,
+	// so it is the page most able to leak: the box it names also holds our own
+	// stock and another customer's cargo. The server scopes `packages` to them
+	// — these extra keys stand in for a future regression that stops doing so.
+	"bwm_logistics.api.portal.shipment_detail": {
+		name: "BWM-000148",
+		status: "In Transit",
+		direction: "Import",
+		destination: "Kumasi",
+		eta: "2026-09-04",
+		total_packages: 12,
+		total_weight_kg: 340,
+		total_charges: 18450,
+		timeline: [
+			{ milestone: "Vessel Departed", event_datetime: "2026-08-02 09:00:00", location: "Shanghai" },
+		],
+		packages: [
+			{ description: "Frozen chicken back", qty: 12, unit: "CARTONS", weight_kg: 340 },
+		],
+		cost: 4200,
+		margin: 31.5,
+		supplier: "Shanghai Poultry Co",
+		purchase_total: 18000,
+	},
 	"bwm_logistics.api.portal.my_pickups": { rows: [], total: 0 },
 	"bwm_logistics.api.portal.my_notifications": { rows: [], total: 0 },
 };

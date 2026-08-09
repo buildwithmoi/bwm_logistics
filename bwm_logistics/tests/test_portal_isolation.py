@@ -29,6 +29,19 @@ FORBIDDEN_KEYS = {
 }
 
 
+def _line(description: str, qty: float, unit: str, customer: str | None = None) -> dict:
+	"""One manifest line. `customer=None` is ours — that is the whole tag."""
+	from bwm_logistics.api.items import ensure_item
+
+	return {
+		"item": ensure_item(description, "Import"),
+		"description": description,
+		"qty": qty,
+		"unit": unit,
+		"customer": customer,
+	}
+
+
 def _customer(name: str) -> str:
 	if not frappe.db.exists("Customer", {"customer_name": name}):
 		doc = frappe.new_doc("Customer")
@@ -78,20 +91,39 @@ class TestPortalIsolation(FrappeTestCase):
 		cls.user_a = _portal_user("isolation-a@bwm-test.invalid", cls.cust_a)
 		cls.user_b = _portal_user("isolation-b@bwm-test.invalid", cls.cust_b)
 
-		# One shipment each, so "somebody else's record" is a real name.
-		cls.ship_a = cls._shipment(cls.cust_a)
-		cls.ship_b = cls._shipment(cls.cust_b)
+		# ONE consolidated box carrying both customers' cargo and some of our
+		# own goods. This is the case the customer tag exists for, and the case
+		# where a leak would actually happen — two customers reading the same
+		# container. A box per customer would prove nothing.
+		box = frappe.get_doc(
+			{
+				"doctype": "Container",
+				"direction": "Import",
+				"contents": [
+					_line("A's cartons", 3, "CARTONS", cls.cust_a),
+					_line("B's pallets", 7, "PALLETS", cls.cust_b),
+					_line("Our own stock", 11, "BAGS"),
+				],
+			}
+		)
+		box.flags.ignore_permissions = True
+		box.insert(ignore_permissions=True)
+		cls.box = box.name
+
+		# One booking each, both riding in that same box.
+		cls.ship_a = cls._shipment(cls.cust_a, box.name)
+		cls.ship_b = cls._shipment(cls.cust_b, box.name)
 		frappe.db.commit()
 
 	@classmethod
-	def _shipment(cls, customer: str) -> str:
+	def _shipment(cls, customer: str, box: str) -> str:
 		doc = frappe.get_doc(
 			{
 				"doctype": "Shipment",
 				"shipment_type": "Customer Cargo",
 				"direction": "Import",
 				"customer": customer,
-				"packages": [{"description": "Isolation test carton", "qty": 1, "unit": "CARTONS"}],
+				"containers": [{"container": box}],
 			}
 		)
 		doc.flags.ignore_permissions = True
@@ -118,6 +150,31 @@ class TestPortalIsolation(FrappeTestCase):
 		frappe.set_user(self.user_b)
 		names = {r["name"] for r in portal.my_shipments()["rows"]}
 		self.assertNotIn(self.ship_a, names)
+
+	def test_consolidated_box_shows_each_customer_only_their_goods(self):
+		"""The manifest lives on a shared box, so the tag is the only thing
+		standing between B and A's cargo."""
+		frappe.set_user(self.user_b)
+		goods = portal.shipment_detail(self.ship_b)["packages"]
+		self.assertEqual([g["description"] for g in goods], ["B's pallets"])
+		self.assertEqual(goods[0]["qty"], 7)
+
+		frappe.set_user(self.user_a)
+		goods = portal.shipment_detail(self.ship_a)["packages"]
+		self.assertEqual([g["description"] for g in goods], ["A's cartons"])
+
+	def test_our_own_goods_never_reach_a_customer(self):
+		"""An untagged line is ours. It is in the same box, and it stays ours."""
+		frappe.set_user(self.user_b)
+		blob = str(portal.shipment_detail(self.ship_b))
+		self.assertNotIn("Our own stock", blob)
+		self.assertNotIn("A's cartons", blob)
+
+	def test_totals_come_from_the_manifest(self):
+		"""Their booking counts their lines — not the box, and not the other
+		customer's cargo."""
+		self.assertEqual(frappe.db.get_value("Shipment", self.ship_b, "total_packages"), 7)
+		self.assertEqual(frappe.db.get_value("Shipment", self.ship_a, "total_packages"), 3)
 
 	def test_portal_payloads_carry_no_cost_of_ours(self):
 		"""No portal endpoint returns a key describing our own cost or margin."""

@@ -22,7 +22,7 @@ has contents is left alone.
 
 import frappe
 
-from bwm_logistics.api.items import ITEM_GROUP, _ensure_group
+from bwm_logistics.api.items import _ensure_group, ensure_item
 
 
 def execute():
@@ -67,7 +67,7 @@ def execute():
 			continue  # already migrated (or hand-entered) — don't double up
 
 		for pkg in packages:
-			item = _item_for(pkg.description, container.direction)
+			item = ensure_item(pkg.description, container.direction)
 			if item:
 				moved["items"] += 1
 			container.append(
@@ -94,32 +94,3 @@ def execute():
 	)
 
 
-def _item_for(description: str, direction: str | None) -> str | None:
-	"""Find or create the catalogue Item a free-text description meant.
-
-	Matching is on the name as typed. The client's sheet shortens names
-	inconsistently ("Hen Leg Quarter" vs "US Hen Leg Quarter"), so anything
-	unmatched becomes its own item rather than being guessed into the wrong one —
-	merging two items later is easy, un-merging is not.
-	"""
-	description = (description or "").strip()
-	if not description:
-		return None
-
-	existing = frappe.db.get_value("Item", {"item_name": description, "item_group": ITEM_GROUP})
-	if existing:
-		return existing
-
-	item = frappe.new_doc("Item")
-	item.item_code = description[:140]
-	item.item_name = description
-	item.item_group = ITEM_GROUP
-	item.is_stock_item = 0
-	item.is_sales_item = 1
-	item.is_purchase_item = 1
-	item.stock_uom = "Nos"
-	if frappe.db.has_column("Item", "bwm_trade_direction"):
-		item.bwm_trade_direction = direction if direction in ("Import", "Export") else "Both"
-	item.flags.ignore_permissions = True
-	item.insert(ignore_permissions=True)
-	return item.name

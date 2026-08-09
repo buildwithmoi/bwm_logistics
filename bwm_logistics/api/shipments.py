@@ -90,6 +90,10 @@ def get_shipment(name):
 	doc = frappe.get_doc("Shipment", name)
 	out = doc.as_dict(no_nulls=False)
 	out["timeline"] = get_timeline(name)
+	# as_dict() hands back the retired `packages` table, which is empty on every
+	# booking made since the manifest moved onto the container — and the printed
+	# label builds one sticker per package from it. Answer with the real one.
+	out["packages"] = doc.manifest()
 	if doc.sales_invoice:
 		out["invoice"] = frappe.db.get_value(
 			"Sales Invoice", doc.sales_invoice,

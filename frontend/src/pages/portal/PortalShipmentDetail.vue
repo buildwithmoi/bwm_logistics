@@ -27,6 +27,8 @@ interface Detail extends Record<string, unknown> {
 const data = ref<Detail | null>(null);
 const loading = ref(true);
 const name = computed(() => String(route.params.name));
+const goods = computed(() => data.value?.packages ?? []);
+const fmtQty = (v?: number) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 onMounted(async () => {
 	try {
@@ -95,23 +97,28 @@ onMounted(async () => {
 
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-5">
 				<!-- Timeline -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-3">
+				<div
+					class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6"
+					:class="goods.length ? 'sm:col-span-3' : 'sm:col-span-5'"
+				>
 					<h2 class="label-caps mb-4">Tracking timeline</h2>
 					<Timeline :events="data.timeline" />
 				</div>
 
-				<!-- Packages -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-2">
-					<h2 class="label-caps mb-4">Your packages</h2>
+				<!-- Their goods, off the container manifest. A booking whose box
+				     has not been packed yet has nothing to show, so it shows nothing. -->
+				<div v-if="goods.length" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 sm:col-span-2">
+					<h2 class="label-caps mb-4">Your goods</h2>
 					<ul class="divide-y divide-gray-100 text-sm">
-						<li v-for="(p, i) in data.packages" :key="i" class="py-2">
+						<li v-for="(p, i) in goods" :key="i" class="py-2">
 							<div class="font-medium">{{ p.description }}</div>
 							<div class="text-xs text-muted-foreground">
-								× {{ p.qty }} · {{ fmtWeight(p.weight_kg as number) }}
+								{{ fmtQty(p.qty as number) }} {{ p.unit || "" }}
+								<template v-if="p.weight_kg"> · {{ fmtWeight(p.weight_kg as number) }}</template>
 							</div>
 						</li>
 					</ul>
-					<div class="mt-3 border-t border-gray-100 pt-3 text-sm">
+					<div v-if="data.total_weight_kg" class="mt-3 border-t border-gray-100 pt-3 text-sm">
 						<div class="flex justify-between">
 							<span class="text-muted-foreground">Total weight</span>
 							<span class="font-medium tabular-nums">{{ fmtWeight(data.total_weight_kg as number) }}</span>
