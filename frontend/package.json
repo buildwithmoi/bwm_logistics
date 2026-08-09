@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit && node scripts/check-imports.mjs",
     "preview": "vite preview",
     "icons": "node scripts/generate-icons.mjs",
     "shots": "playwright test",
-    "shots:install": "playwright install chromium"
+    "shots:install": "playwright install chromium",
+    "check-imports": "node scripts/check-imports.mjs"
   },
   "dependencies": {
     "@vueuse/core": "^11.2.0",

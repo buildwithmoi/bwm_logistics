@@ -5,6 +5,8 @@
  "engine": "InnoDB",
  "field_order": [
   "shipment_type",
+  "supplier",
+  "supplier_name",
   "customer",
   "customer_name",
   "column_break_head",
@@ -13,6 +15,7 @@
   "current_milestone",
   "column_break_head2",
   "container",
+  "containers",
   "branch",
   "notify_customer",
   "parties_section",
@@ -43,12 +46,25 @@
  "fields": [
   {
    "default": "Customer Cargo",
-   "description": "Own Goods (Trading): your own imported/exported goods — no customer; carries purchase costs and tagged sales for a P&L.",
+   "description": "Own Goods (Trading): your own imported/exported goods \u2014 no customer; carries purchase costs and tagged sales for a P&L.",
    "fieldname": "shipment_type",
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Shipment Type",
    "options": "Customer Cargo\nOwn Goods (Trading)"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fetch_from": "supplier.supplier_name",
+   "fieldname": "supplier_name",
+   "fieldtype": "Data",
+   "label": "Supplier Name",
+   "read_only": 1
   },
   {
    "description": "Required for Customer Cargo; empty for Own Goods (Trading).",
@@ -98,13 +114,20 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Tagging a container subscribes this customer to its milestone notifications.",
+   "description": "Primary container (kept in step with the first row of Containers).",
    "fieldname": "container",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Container",
    "options": "Container"
+  },
+  {
+   "fieldname": "containers",
+   "fieldtype": "Table",
+   "label": "Containers",
+   "options": "Shipment Container",
+   "description": "Every box this booking is carried in."
   },
   {
    "fieldname": "branch",

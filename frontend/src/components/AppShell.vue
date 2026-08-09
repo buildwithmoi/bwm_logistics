@@ -18,6 +18,7 @@ import {
 	UserRound,
 	BarChart3,
 	Boxes,
+	PackageSearch,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import BrandLogo from "@/components/BrandLogo.vue";
@@ -98,6 +99,7 @@ async function logout() {
 const operatorAll: NavItem[] = [
 	...operatorPrimary,
 	{ key: "stock", label: "Stock", icon: Boxes, to: "/stock" },
+	{ key: "items", label: "Items", icon: PackageSearch, to: "/items" },
 	{ key: "reports", label: "Reports", icon: BarChart3, to: "/reports" },
 	{ key: "notifications", label: "Notifications", icon: BellRing, to: "/notifications" },
 	{ key: "settings", label: "Settings", icon: Settings, to: "/settings" },

@@ -223,7 +223,7 @@ async function sendInvite() {
 			<template #footer>
 				<div class="flex justify-end gap-2">
 					<Button variant="outline" @click="inviteFor = null">Cancel</Button>
-					<Button :loading="inviting" @click="sendInvite"><Mail class="h-4 w-4" /> Send invitation</Button>
+					<Button :loading="inviting" @click="sendInvite">Send invitation</Button>
 				</div>
 			</template>
 		</Dialog>

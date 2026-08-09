@@ -34,9 +34,33 @@ class Shipment(Document):
 
 	def validate(self):
 		self.validate_customer()
+		self.sync_containers()
 		self.compute_totals()
 		self.sync_direction_from_container()
 		self.check_distribution_products()
+
+	def sync_containers(self):
+		"""Keep the single `container` link in step with the `containers` table.
+
+		A booking can span several boxes, so the table is the truth. The old
+		single link stays as "the primary box" because tracking events, the
+		portal and every existing query still read it — this keeps both correct
+		rather than rewriting all of them at once.
+		"""
+		rows = [r.container for r in self.containers if r.container]
+		# De-duplicate but hold order: the first box listed is the primary one.
+		seen: dict[str, None] = {}
+		for name in rows:
+			seen.setdefault(name, None)
+		ordered = list(seen)
+		if len(ordered) != len(self.containers):
+			self.set("containers", [{"container": name} for name in ordered])
+
+		if ordered:
+			self.container = ordered[0]
+		elif self.container:
+			# Set the old way (or by an import): adopt it as the first row.
+			self.append("containers", {"container": self.container})
 
 	def validate_customer(self):
 		if self.is_trading():

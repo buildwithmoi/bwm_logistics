@@ -17,7 +17,7 @@ from bwm_logistics.api._perm import (
 )
 
 SHIPMENT_FIELDS = [
-	"customer", "shipment_type", "direction", "status", "container", "notify_customer",
+	"customer", "supplier", "shipment_type", "direction", "status", "container", "notify_customer",
 	"shipper_name", "shipper_phone", "origin",
 	"consignee_name", "consignee_phone", "destination", "delivery_address",
 	"notes", "branch",
@@ -132,17 +132,14 @@ def save_shipment(payload):
 	for field in SHIPMENT_FIELDS:
 		if field in data:
 			doc.set(field, data.get(field))
-	if "packages" in data:
-		doc.set("packages", [])
-		for row in data.get("packages") or []:
-			doc.append("packages", {
-				"description": row.get("description"),
-				"qty": cint(row.get("qty") or 1),
-				"unit": row.get("unit") or "PIECES",
-				"weight_kg": row.get("weight_kg") or 0,
-				"volume_cbm": row.get("volume_cbm") or 0,
-				"declared_value": row.get("declared_value") or 0,
-			})
+	if "containers" in data:
+		# A booking can ride in several boxes. Shipment.sync_containers() keeps
+		# the legacy single `container` link pointing at the first of them.
+		doc.set("containers", [])
+		for row in data.get("containers") or []:
+			box = row if isinstance(row, str) else row.get("container")
+			if box:
+				doc.append("containers", {"container": box})
 	if "charges" in data:
 		doc.set("charges", [])
 		for row in data.get("charges") or []:

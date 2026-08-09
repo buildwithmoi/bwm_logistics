@@ -54,6 +54,7 @@ P8_MILESTONES = {
 def after_install():
 	ensure_roles()
 	ensure_customer_fields()
+	ensure_item_fields()
 	ensure_user_role_field()
 	ensure_invoice_shipment_fields()
 	backfill_invoice_shipment_tags()
@@ -214,7 +215,7 @@ def seed_logistics_roles():
 	make("Manager", all_pages=1)
 	make(
 		"Operations",
-		pages=["dashboard", "containers", "shipments", "stock", "dispatch", "customers", "billing", "reports", "notifications"],
+		pages=["dashboard", "containers", "shipments", "stock", "items", "dispatch", "customers", "billing", "reports", "notifications"],
 	)
 	make("Accounts", pages=["dashboard", "customers", "billing", "stock", "reports", "notifications"])
 
@@ -280,6 +281,34 @@ def ensure_roles():
 		role.desk_access = desk_access
 		role.description = desc
 		role.insert(ignore_permissions=True)
+
+
+def ensure_item_fields():
+	"""Classify a catalogue Item as import goods, export goods or both.
+
+	The container contents picker filters on this, so an export container never
+	offers the frozen chicken you only ever import.
+	"""
+	if not frappe.db.exists("DocType", "Item"):
+		return  # ERPNext missing — nothing to extend
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	create_custom_fields(
+		{
+			"Item": [
+				{
+					"fieldname": "bwm_trade_direction",
+					"fieldtype": "Select",
+					"label": "Trade Direction",
+					"options": "Both\nImport\nExport",
+					"default": "Both",
+					"insert_after": "item_group",
+					"description": "Which container direction may carry this item.",
+				}
+			]
+		},
+		ignore_validate=True,
+	)
 
 
 def ensure_customer_fields():

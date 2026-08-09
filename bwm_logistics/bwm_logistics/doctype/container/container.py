@@ -20,6 +20,30 @@ class Container(Document):
 		self.validate_container_no()
 		self.set_default_template()
 		self.set_demurrage_start()
+		self.compute_contents()
+
+	def compute_contents(self):
+		self.total_qty = sum((c.qty or 0) for c in self.contents)
+
+	def customers(self) -> list[str]:
+		"""Every customer with goods in this box, in manifest order.
+
+		Untagged lines are ours, so they contribute nobody — which is what makes
+		a consolidated box notify three customers and not four.
+		"""
+		seen: dict[str, None] = {}
+		for row in self.contents:
+			if row.customer:
+				seen.setdefault(row.customer, None)
+		return list(seen)
+
+	def contents_for(self, customer: str) -> list[dict]:
+		"""One customer's lines, for a notification that names their goods."""
+		return [
+			{"item": r.item, "description": r.description or r.item, "qty": r.qty, "unit": r.unit}
+			for r in self.contents
+			if r.customer == customer
+		]
 
 	def validate_container_no(self):
 		if not self.container_no:

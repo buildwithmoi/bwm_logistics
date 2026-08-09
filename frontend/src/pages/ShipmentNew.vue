@@ -24,14 +24,6 @@ const branch = useBranchStore();
 
 const saving = ref(false);
 
-interface PkgRow {
-	description: string;
-	qty: number;
-	unit: string;
-	weight_kg: number | null;
-	declared_value: number | null;
-}
-const UNITS = ["PIECES", "CARTONS", "BOXES", "BAGS", "PALLETS", "KG", "UNITS"];
 interface ChargeRow {
 	charge_type: string;
 	amount: number | null;
@@ -39,13 +31,16 @@ interface ChargeRow {
 const form = reactive({
 	shipment_type: "Own Goods (Trading)",
 	customer: "" as string | null,
-	container: "" as string | null,
+	supplier: "" as string | null,
+	// A booking can ride in several boxes; what's *in* each box is recorded on
+	// the container itself, because a consolidated box carries several people's
+	// goods and only the container knows whose is whose.
+	containers: [] as Array<{ container: string; label: string }>,
 	direction: "Import",
 	consignee_name: "",
 	consignee_phone: "",
 	destination: "",
 	delivery_address: "",
-	packages: [{ description: "", qty: 1, unit: "PIECES", weight_kg: null, declared_value: null }] as PkgRow[],
 	charges: [] as ChargeRow[],
 });
 
@@ -61,7 +56,10 @@ interface ContainerHit extends Record<string, unknown> {
 	sub: string;
 }
 const customerDisplay = ref<string | null>(null);
-const containerDisplay = ref<string | null>(null);
+const supplierDisplay = ref<string | null>(null);
+// The picker clears itself after each pick so several boxes can be added in a row.
+const containerPick = ref<string | null>(null);
+const containerPickLabel = ref<string | null>(null);
 
 async function fetchCustomers(q: string): Promise<CustomerHit[]> {
 	const res = await call<{ rows: CustomerHit[] }>("bwm_logistics.api.customers.list_customers", {
@@ -70,6 +68,27 @@ async function fetchCustomers(q: string): Promise<CustomerHit[]> {
 	});
 	return res.rows;
 }
+interface SupplierHit extends Record<string, unknown> {
+	name: string;
+	supplier_name: string;
+}
+async function fetchSuppliers(q: string): Promise<SupplierHit[]> {
+	return call<SupplierHit[]>("bwm_logistics.api.purchasing.list_suppliers", { search: q || null });
+}
+async function createSupplier(name: string) {
+	if (!name) return;
+	try {
+		const res = await call<{ name: string }>("bwm_logistics.api.purchasing.create_supplier", {
+			supplier_name: name,
+		});
+		form.supplier = res.name;
+		supplierDisplay.value = name;
+		toast.success(`Supplier “${name}” added`);
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not add supplier");
+	}
+}
+
 async function fetchContainers(q: string): Promise<ContainerHit[]> {
 	const res = await call<{ rows: Array<{ name: string; container_no?: string; direction: string; vessel?: string; eta?: string }> }>(
 		"bwm_logistics.api.containers.list_containers",
@@ -82,8 +101,11 @@ async function fetchContainers(q: string): Promise<ContainerHit[]> {
 	}));
 }
 
-function addPackage() {
-	form.packages.push({ description: "", qty: 1, unit: "PIECES", weight_kg: null, declared_value: null });
+function addContainer(name: string | null) {
+	if (!name || form.containers.some((c) => c.container === name)) return;
+	form.containers.push({ container: name, label: containerPickLabel.value || name });
+	containerPick.value = null;
+	containerPickLabel.value = null;
 }
 function addCharge() {
 	form.charges.push({ charge_type: "", amount: null });
@@ -97,19 +119,15 @@ async function save() {
 		toast.warning("Pick a customer");
 		return;
 	}
-	if (!form.packages.some((p) => p.description)) {
-		toast.warning("Add at least one package");
-		return;
-	}
 	saving.value = true;
 	try {
 		const res = await call<{ name: string }>("bwm_logistics.api.shipments.save_shipment", {
 			payload: {
 				...form,
 				customer: isTrading.value ? null : form.customer,
-				container: form.container || null,
+				supplier: form.supplier || null,
+				containers: form.containers.map((c) => c.container),
 				branch: branch.filter,
-				packages: form.packages.filter((p) => p.description),
 				charges: form.charges.filter((c) => c.charge_type),
 			},
 		});
@@ -159,15 +177,16 @@ async function save() {
 					/>
 				</div>
 				<div class="space-y-1.5">
-					<Label>Container (tag for notifications)</Label>
+					<Label>Supplier</Label>
 					<SearchCombo
-						v-model="form.container"
-						v-model:display-value="containerDisplay"
-						:fetcher="fetchContainers"
+						v-model="form.supplier"
+						v-model:display-value="supplierDisplay"
+						:fetcher="fetchSuppliers"
 						value-key="name"
-						label-key="label"
-						sublabel-key="sub"
-						placeholder="Search container… (leave empty for loose cargo)"
+						label-key="supplier_name"
+						placeholder="Search supplier…"
+						create-label="Add supplier"
+						@create="createSupplier"
 					/>
 				</div>
 				<div class="space-y-1.5">
@@ -178,11 +197,12 @@ async function save() {
 					<Label for="s-destination">Destination</Label>
 					<Input id="s-destination" v-model="form.destination" placeholder="e.g. Accra" />
 				</div>
-				<div class="space-y-1.5">
-					<Label for="s-consignee">Consignee (receiver)</Label>
-					<Input id="s-consignee" v-model="form.consignee_name" placeholder="Receiver name" />
+				<!-- Own goods are consigned to us, so there is nobody to name. -->
+				<div v-if="!isTrading" class="space-y-1.5">
+					<Label for="s-consignee">Consignee (who receives it)</Label>
+					<Input id="s-consignee" v-model="form.consignee_name" placeholder="Defaults to the customer" />
 				</div>
-				<div class="space-y-1.5">
+				<div v-if="!isTrading" class="space-y-1.5">
 					<Label for="s-phone">Consignee phone</Label>
 					<Input id="s-phone" v-model="form.consignee_phone" type="tel" inputmode="tel" placeholder="+233…" />
 				</div>
@@ -193,54 +213,40 @@ async function save() {
 			</div>
 		</FormSection>
 
-		<FormSection title="Packages">
-			<template #action>
-				<button
-					type="button"
-					class="shrink-0 text-xs font-medium text-brand-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-					@click="addPackage"
-				>
-					+ Add package
-				</button>
-			</template>
+		<FormSection
+			title="Containers"
+			hint="Every box this booking rides in. What's inside each one — and whose it is — is recorded on the container."
+		>
 			<div class="space-y-3">
-				<div
-					v-for="(p, i) in form.packages"
-					:key="i"
-					class="rounded-xl border border-border p-3 sm:flex sm:items-end sm:gap-2 sm:border-0 sm:p-0"
-				>
-					<div class="space-y-1.5 sm:min-w-0 sm:flex-1">
-						<Label :for="`pkg-desc-${i}`">Description</Label>
-						<Input :id="`pkg-desc-${i}`" v-model="p.description" placeholder="e.g. US Hen Leg Quarter" />
-					</div>
-					<div class="mt-2 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:items-end">
-						<div class="space-y-1.5 sm:w-20">
-							<Label :for="`pkg-qty-${i}`">Qty</Label>
-							<Input :id="`pkg-qty-${i}`" v-model.number="p.qty" type="number" min="1" inputmode="numeric" />
-						</div>
-						<div class="space-y-1.5 sm:w-32">
-							<Label :for="`pkg-unit-${i}`">Unit</Label>
-							<Select :id="`pkg-unit-${i}`" v-model="p.unit" :options="UNITS" />
-						</div>
-						<div class="space-y-1.5 sm:w-24">
-							<Label :for="`pkg-kg-${i}`">Weight kg</Label>
-							<Input :id="`pkg-kg-${i}`" v-model.number="p.weight_kg" type="number" min="0" inputmode="decimal" />
-						</div>
-						<div class="space-y-1.5 sm:w-28">
-							<Label :for="`pkg-val-${i}`">Value</Label>
-							<Input :id="`pkg-val-${i}`" v-model.number="p.declared_value" type="number" min="0" inputmode="decimal" />
-						</div>
-					</div>
-					<button
-						type="button"
-						class="mt-2 flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg text-[13px] text-gray-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-40 sm:mt-0 sm:w-9 sm:text-transparent"
-						:disabled="form.packages.length === 1"
-						:aria-label="`Remove package ${i + 1}`"
-						@click="form.packages.splice(i, 1)"
+				<div v-if="form.containers.length" class="space-y-1.5">
+					<div
+						v-for="(c, i) in form.containers"
+						:key="c.container"
+						class="flex items-center gap-3 rounded-xl border border-gray-200 px-3.5 py-2.5"
 					>
-						<Trash2 class="h-4 w-4 text-gray-400" aria-hidden="true" />
-						<span class="sm:hidden">Remove</span>
-					</button>
+						<span class="min-w-0 flex-1 truncate text-sm font-medium">{{ c.label }}</span>
+						<button
+							type="button"
+							class="shrink-0 rounded-lg px-2 py-1 text-[13px] text-gray-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+							:aria-label="`Remove ${c.label}`"
+							@click="form.containers.splice(i, 1)"
+						>
+							Remove
+						</button>
+					</div>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Add a container</Label>
+					<SearchCombo
+						v-model="containerPick"
+						v-model:display-value="containerPickLabel"
+						:fetcher="fetchContainers"
+						value-key="name"
+						label-key="label"
+						sublabel-key="sub"
+						placeholder="Search container… (leave empty for loose cargo)"
+						@update:model-value="(v) => addContainer(v as string | null)"
+					/>
 				</div>
 			</div>
 		</FormSection>

@@ -33,6 +33,7 @@ const routes = [
 		component: () => import("@/pages/ShipmentLabel.vue"),
 	},
 	{ path: "/stock", name: "stock", component: () => import("@/pages/Stock.vue") },
+	{ path: "/items", name: "items", component: () => import("@/pages/Items.vue") },
 	{ path: "/dispatch", name: "dispatch", component: () => import("@/pages/Dispatch.vue") },
 	{ path: "/dispatch/new", name: "dispatch-run-new", component: () => import("@/pages/DispatchRunNew.vue") },
 	{

@@ -24,8 +24,17 @@ const router = useRouter();
 const toast = useToast();
 const session = useSessionStore();
 
+interface ContentRow extends Record<string, unknown> {
+	item: string;
+	description: string;
+	qty: number;
+	unit?: string;
+	customer?: string | null;
+	customer_name?: string | null;
+}
 interface ContainerData {
 	doc: Record<string, unknown>;
+	contents: ContentRow[];
 	shipments: Array<Record<string, unknown>>;
 	timeline: TimelineEvent[];
 	milestone_options: Array<{ milestone: string; notify_customer: number }>;
@@ -146,6 +155,21 @@ const shipmentColumns = [
 	{ key: "total_charges", label: "Charges", numeric: true },
 ];
 
+// The manifest, and who is in the box. An untagged line is ours.
+const contentColumns = [
+	{ key: "description", label: "Item", primary: true },
+	{ key: "customer_name", label: "Customer", trailing: true },
+	{ key: "qty", label: "Qty", numeric: true },
+];
+const contents = computed<ContentRow[]>(() => data.value?.contents || []);
+const contentCustomers = computed(() => {
+	const seen = new Map<string, string>();
+	for (const row of contents.value) {
+		if (row.customer) seen.set(row.customer, row.customer_name || row.customer);
+	}
+	return [...seen.values()];
+});
+
 const customsRows = computed(() => [
 	{ label: "Customs", value: doc.value.customs_status },
 	{ label: "Free days", value: doc.value.free_days },
@@ -212,6 +236,34 @@ const customsRows = computed(() => [
 					<h2 class="label-caps mb-4">Milestone timeline</h2>
 					<Timeline :events="data.timeline" />
 				</div>
+			</div>
+
+			<!-- What's in the box -->
+			<div class="mt-4">
+				<div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+					<h2 class="label-caps">Contents ({{ contents.length }})</h2>
+					<p v-if="contentCustomers.length" class="text-xs text-muted-foreground">
+						Carrying goods for {{ contentCustomers.join(", ") }}
+					</p>
+				</div>
+				<DataTable
+					:columns="contentColumns"
+					:rows="contents"
+					row-key="description"
+					empty-text="Nothing recorded in this box yet."
+				>
+					<template #cell-description="{ row }">
+						<span class="font-medium">{{ row.description }}</span>
+					</template>
+					<template #cell-customer_name="{ row }">
+						<Badge v-if="row.customer" tone="info">{{ row.customer_name || row.customer }}</Badge>
+						<Badge v-else tone="brand">Own goods</Badge>
+					</template>
+					<template #cell-qty="{ row }">
+						{{ Number(row.qty || 0).toLocaleString() }}
+						<span class="text-xs text-muted-foreground">{{ String(row.unit || "").toLowerCase() }}</span>
+					</template>
+				</DataTable>
 			</div>
 
 			<!-- Tagged shipments -->

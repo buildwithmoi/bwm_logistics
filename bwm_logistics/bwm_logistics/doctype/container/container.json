@@ -35,6 +35,9 @@
   "column_break_customs",
   "free_days",
   "demurrage_start_date",
+  "contents_section",
+  "contents",
+  "total_qty",
   "notes_section",
   "notes"
  ],
@@ -210,6 +213,24 @@
    "fieldname": "demurrage_start_date",
    "fieldtype": "Date",
    "label": "Demurrage Start"
+  },
+  {
+   "fieldname": "contents_section",
+   "fieldtype": "Section Break",
+   "label": "Contents"
+  },
+  {
+   "fieldname": "contents",
+   "fieldtype": "Table",
+   "label": "Contents",
+   "options": "Container Content",
+   "description": "What is in the box, and whose it is. Leave Customer empty for own goods."
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "label": "Total Qty",
+   "read_only": 1
   },
   {
    "fieldname": "notes_section",

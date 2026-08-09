@@ -5,7 +5,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from bwm_logistics.api._perm import ANY_STAFF, ROLE_MANAGER, ROLE_OPERATIONS, ROLE_SYS, require
 
@@ -98,12 +98,27 @@ def get_container(name):
 		fields=["name", "event_datetime", "milestone", "location", "remarks", "shipment", "notified"],
 		order_by="event_datetime desc",
 	)
+	contents = [
+		{
+			"item": r.item,
+			"description": r.description or r.item,
+			"qty": r.qty,
+			"unit": r.unit,
+			"customer": r.customer,
+			"customer_name": r.customer_name,
+			"weight_kg": r.weight_kg,
+			"declared_value": r.declared_value,
+		}
+		for r in doc.contents
+	]
+
 	from bwm_logistics.carrier_tracking import provider_configured
 
 	return {
 		"doc": doc.as_dict(no_nulls=False),
 		"shipments": shipments,
 		"timeline": timeline,
+		"contents": contents,
 		"milestone_options": doc.milestone_options(),
 		"tracking_provider": provider_configured(),
 	}
@@ -127,6 +142,25 @@ def save_container(payload):
 	for field in CONTAINER_FIELDS:
 		if field in data:
 			doc.set(field, data.get(field))
+	if "contents" in data:
+		# The manifest is authoritative: replace it wholesale rather than
+		# merging, so removing a line in the UI actually removes it.
+		doc.set("contents", [])
+		for row in data.get("contents") or []:
+			if not row.get("item"):
+				continue
+			doc.append(
+				"contents",
+				{
+					"item": row.get("item"),
+					"description": row.get("description"),
+					"qty": flt(row.get("qty")),
+					"unit": row.get("unit"),
+					"customer": row.get("customer") or None,
+					"weight_kg": flt(row.get("weight_kg")) or None,
+					"declared_value": flt(row.get("declared_value")) or None,
+				},
+			)
 	doc.save()
 	return {"name": doc.name}
 

@@ -100,7 +100,38 @@ def _context(event, shipment, settings) -> dict:
 		"location_suffix": f" at {event.location}" if event.location else "",
 		"business_name": business,
 		"tracking_link": get_url(f"/logistics/portal?track={shipment.name}"),
+		# Their own goods, named. A consolidated box holds several customers'
+		# cargo, so quoting the container number tells them nothing they can
+		# check — "your 200 cartons of Chicken Back" does.
+		"goods": _goods_for(event, shipment),
 	}
+
+
+def _goods_for(event, shipment) -> str:
+	"""This customer's lines in the container the event fired on.
+
+	Empty when we don't know (loose cargo, or a box with no manifest yet), and
+	the templates simply omit the phrase rather than printing a blank.
+	"""
+	if not event.container or not shipment.customer:
+		return ""
+	rows = frappe.get_all(
+		"Container Content",
+		filters={
+			"parenttype": "Container",
+			"parent": event.container,
+			"customer": shipment.customer,
+		},
+		fields=["description", "item", "qty", "unit"],
+		order_by="idx",
+	)
+	parts = []
+	for r in rows:
+		label = r.description or r.item
+		qty = f"{r.qty:g} " if r.qty else ""
+		unit = f"{r.unit.lower()} " if r.unit else ""
+		parts.append(f"{qty}{unit}{label}".strip())
+	return ", ".join(parts)
 
 
 def _render(template: str, ctx: dict) -> str:
