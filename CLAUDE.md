@@ -117,8 +117,17 @@ wizard** creates — not `install-app`. On a provisioned-but-not-set-up server
 and the next migrate finishes the job. Run it by hand with
 `bench --site <site> execute bwm_logistics.opening_repair.run`.
 
+**Seeding happens once, and a wipe stays wiped.** `Logistics Settings.
+opening_data_loaded` is set the first time the opening balance is accounted for
+(by the install hook, or by the sweep finding it already there). While it is
+set, `opening_repair` never seeds again — otherwise clearing the site to enter
+records by hand would be undone by the next migrate, which is resurrection, not
+repair. `reset_demo_data.run()` leaves the flag set for exactly that reason.
+Untick it (or run `import_jm_excel.load_opening()`) to ask for the data back.
+
 To start a site over instead of repairing it, that is a separate, deliberate act:
-`reset_demo_data.run()` then `import_jm_excel.load_opening()`.
+`reset_demo_data.run()` then, if you want the opening balance again, untick the
+flag and migrate.
 
 Note: the .xlsx itself stays out of git (`*.xlsx` is gitignored) but the
 extracted JSON does carry real container/BL numbers, customer names and
@@ -317,6 +326,17 @@ fails the suite rather than quietly lengthening a page.
 - **Statuses are Milestone Templates**, editable in Settings → Statuses. There
   is no separate Status doctype and there should not be — containers already
   link a template, and each milestone row carries its own `notify_customer`.
+- **Tracking Event is append-only for Operations, correctable by a manager.**
+  System Manager and Logistics Manager hold `write` + `delete`; Operations and
+  Accounts hold read only. Note the Desk hides Delete when *no* role has the
+  permission — that is why an admin could not remove one even though
+  `has_permission()` says Administrator may. Deleting an event calls
+  `resync_from_events()`, which re-derives `current_milestone`/`status` on the
+  container and on every shipment in it from the events that remain — a
+  shipment reads its container's events too, so rewinding one must look at
+  both, and a record must never be left showing a milestone with an empty
+  timeline behind it. `Cancelled` is a decision, not a milestone, so a rewind
+  leaves it alone.
 - **Consignee applies to customer cargo only.** On own goods the receiver is the
   company, so the fields don't render.
 

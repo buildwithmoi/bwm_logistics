@@ -77,13 +77,17 @@ def import_opening_data():
 	that gets one does not double-import from the other.
 
 	Deliberately NOT wired to after_migrate — that would resurrect records the
-	client had deleted on purpose. Ongoing migrates rely on the patch, which
-	Frappe runs exactly once.
+	client had deleted on purpose. `opening_repair.run()` *is* on after_migrate,
+	which is why it seeds only while `Logistics Settings.opening_data_loaded` is
+	unset: it heals a site that never got the data, and never re-seeds one that
+	was cleared deliberately. This hook sets that marker.
 	"""
 	from bwm_logistics.import_jm_excel import load_opening
 
 	try:
-		load_opening()
+		result = load_opening() or {}
+		if not result.get("deferred"):
+			frappe.db.set_single_value("Logistics Settings", "opening_data_loaded", 1)
 	except Exception:
 		frappe.db.rollback()
 		frappe.log_error(title="Opening data import failed", message=frappe.get_traceback())

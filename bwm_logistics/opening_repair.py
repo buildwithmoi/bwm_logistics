@@ -84,8 +84,13 @@ def run():
 		print(f"Opening-data repair deferred — {blocker}. It will retry on the next migrate.")
 		return
 
+	# Seeding is a one-time act. Read the marker up front: _load_missing_containers
+	# sets it as soon as the data is accounted for, and the manifest rebuild below
+	# has to run on that same pass for a site that is only now being repaired.
+	# After that, an empty site is an empty site because somebody emptied it.
+	seeded = bool(frappe.db.get_single_value("Logistics Settings", "opening_data_loaded"))
 	data = _opening_data()
-	if data:
+	if data and not seeded:
 		_load_missing_containers(data, report)
 		_rebuild_empty_manifests(data, report)
 	_adopt_single_container_links(report)
@@ -140,12 +145,16 @@ def _existing_container(row: dict) -> str | None:
 def _load_missing_containers(data: dict, report: list[str]):
 	"""Run the import when the frozen file holds boxes this site has never seen.
 
-	load() skips whatever already exists, so this is a no-op on a site that
-	imported cleanly — and the repair for one where the import failed and was
-	only written to the Error Log.
+	Once. `Logistics Settings.opening_data_loaded` records that the shipped
+	opening balance has had its turn, and after that this never seeds again —
+	otherwise clearing the site to enter records by hand would be undone by the
+	next migrate, which is not a repair, it is a resurrection. Untick the box to
+	ask for it again. The caller checks the marker; this sets it.
 	"""
 	missing = [row for row in data.get("containers") or [] if not _existing_container(row)]
 	if not missing:
+		# Already on the site: mark it done so a later wipe stays wiped.
+		_mark_opening_loaded()
 		return
 
 	from bwm_logistics.import_jm_excel import load
@@ -157,10 +166,19 @@ def _load_missing_containers(data: dict, report: list[str]):
 		frappe.log_error(title="Opening data repair failed", message=frappe.get_traceback())
 		report.append(f"WARNING: {len(missing)} container(s) still missing — see the Error Log")
 		return
+	if created.get("deferred"):
+		return
+	_mark_opening_loaded()
 	report.append(
 		f"imported {created.get('containers', 0)} container(s), "
 		f"{created.get('shipments', 0)} shipment(s), {created.get('distributions', 0)} distribution(s)"
 	)
+
+
+def _mark_opening_loaded():
+	"""Record that the shipped opening balance has had its turn on this site."""
+	if not frappe.db.get_single_value("Logistics Settings", "opening_data_loaded"):
+		frappe.db.set_single_value("Logistics Settings", "opening_data_loaded", 1)
 
 
 def _rebuild_empty_manifests(data: dict, report: list[str]):

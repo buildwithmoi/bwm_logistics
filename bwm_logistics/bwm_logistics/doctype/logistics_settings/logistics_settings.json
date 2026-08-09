@@ -31,7 +31,9 @@
   "column_break_website",
   "contact_phone",
   "contact_email",
-  "office_hours"
+  "office_hours",
+  "data_section",
+  "opening_data_loaded"
  ],
  "fields": [
   {
@@ -121,13 +123,13 @@
    "label": "Email Subject Template"
   },
   {
-   "default": "Hello {customer_name},\n\nYour shipment {tracking_no} has a new update: {milestone}{location_suffix}.\n\nTrack it any time: {tracking_link}\n\n— {business_name}",
+   "default": "Hello {customer_name},\n\nYour shipment {tracking_no} has a new update: {milestone}{location_suffix}.\n\nTrack it any time: {tracking_link}\n\n\u2014 {business_name}",
    "fieldname": "email_body_template",
    "fieldtype": "Text",
    "label": "Email Body Template"
   },
   {
-   "default": "{business_name}: shipment {tracking_no} update — {milestone}{location_suffix}. Track: {tracking_link}",
+   "default": "{business_name}: shipment {tracking_no} update \u2014 {milestone}{location_suffix}. Track: {tracking_link}",
    "fieldname": "sms_template",
    "fieldtype": "Small Text",
    "label": "SMS Template"
@@ -186,6 +188,17 @@
    "fieldname": "office_hours",
    "fieldtype": "Data",
    "label": "Office Hours"
+  },
+  {
+   "fieldname": "data_section",
+   "fieldtype": "Section Break",
+   "label": "Opening Data"
+  },
+  {
+   "description": "Set once the shipped opening balance has been imported. While this is ticked the deploy repair will not re-seed it \u2014 so clearing the site and entering records by hand survives a migrate. Untick to have the next migrate load it again.",
+   "fieldname": "opening_data_loaded",
+   "fieldtype": "Check",
+   "label": "Opening data has been loaded"
   }
  ],
  "index_web_pages_for_search": 0,

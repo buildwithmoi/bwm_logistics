@@ -887,6 +887,65 @@ class TestStockDistribution(IntegrationTestCase):
 		self.assertIn("stock", access.ROLE_PAGES["Logistics Operations"])
 
 
+class TestTrackingEventDeletion(IntegrationTestCase):
+	"""The milestone log is append-only for the people recording it and
+	correctable by a manager — an admin has to be able to clear a site down to
+	nothing and start entering by hand."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		from bwm_logistics.install import after_install
+
+		after_install()
+
+	def _box_with_event(self, milestone="Vessel Departed"):
+		box = frappe.get_doc(
+			{"doctype": "Container", "direction": "Import", "container_no": "TSTU9999990"}
+		).insert(ignore_permissions=True)
+		ship = frappe.get_doc(
+			{"doctype": "Shipment", "shipment_type": "Own Goods (Trading)", "direction": "Import",
+			 "containers": [{"container": box.name}]}
+		).insert(ignore_permissions=True)
+		event = frappe.get_doc(
+			{"doctype": "Tracking Event", "container": box.name, "milestone": milestone, "notify": 0}
+		).insert(ignore_permissions=True)
+		return box, ship, event
+
+	def test_managers_hold_write_and_delete(self):
+		"""The Desk hides Delete when no role has the permission — which is why
+		even an admin could not remove an event."""
+		perms = {p.role: p for p in frappe.get_meta("Tracking Event").permissions}
+		for role in ("System Manager", "Logistics Manager"):
+			self.assertEqual(perms[role].delete, 1, f"{role} cannot delete a tracking event")
+			self.assertEqual(perms[role].write, 1, f"{role} cannot edit a tracking event")
+		self.assertEqual(perms["Logistics Operations"].delete, 0, "the log must stay append-only for ops")
+
+	def test_deleting_the_last_event_rewinds_the_records_it_moved(self):
+		box, ship, event = self._box_with_event()
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "status"), "In Transit")
+
+		frappe.delete_doc("Tracking Event", event.name, ignore_permissions=True, delete_permanently=True)
+
+		# Both ends go back to where they started — not left reading a
+		# milestone with an empty timeline behind it.
+		self.assertIsNone(frappe.db.get_value("Container", box.name, "current_milestone"))
+		self.assertEqual(frappe.db.get_value("Container", box.name, "status"), "Active")
+		self.assertIsNone(frappe.db.get_value("Shipment", ship.name, "current_milestone"))
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "status"), "Open")
+
+	def test_deleting_one_of_several_falls_back_to_the_one_before(self):
+		box, ship, first = self._box_with_event("Vessel Departed")
+		second = frappe.get_doc(
+			{"doctype": "Tracking Event", "container": box.name, "milestone": "Arrived at Port", "notify": 0}
+		).insert(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value("Container", box.name, "current_milestone"), "Arrived at Port")
+
+		frappe.delete_doc("Tracking Event", second.name, ignore_permissions=True, delete_permanently=True)
+		self.assertEqual(frappe.db.get_value("Container", box.name, "current_milestone"), "Vessel Departed")
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "status"), "In Transit")
+		self.assertTrue(frappe.db.exists("Tracking Event", first.name))
+
+
 class TestDemurrageAlerts(IntegrationTestCase):
 	def test_at_risk_and_digest(self):
 		frappe.set_user("Administrator")

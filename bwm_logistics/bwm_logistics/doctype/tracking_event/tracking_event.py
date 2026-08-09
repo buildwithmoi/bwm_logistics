@@ -51,6 +51,71 @@ class TrackingEvent(Document):
 					frappe.get_doc("Shipment", name).apply_milestone(self.milestone)
 
 	def on_trash(self):
-		# Append-only: events are the audit trail behind customer notifications.
-		if not frappe.session.user == "Administrator":
-			frappe.throw(_("Tracking events cannot be deleted."))
+		"""Append-only for the people recording milestones, correctable by a
+		manager. The log is the audit trail behind customer notifications, so
+		Operations cannot rewrite it — but somebody has to be able to undo a bad
+		import or clear a site down to nothing and start entering by hand.
+
+		The doctype permissions say the same thing; this is the backstop for a
+		script or an API call that reaches past them.
+		"""
+		if not (
+			frappe.session.user == "Administrator"
+			or {"System Manager", "Logistics Manager"} & set(frappe.get_roles())
+		):
+			frappe.throw(_("Only a manager can delete a tracking event."))
+
+	def after_delete(self):
+		"""A deleted event must not leave its milestone behind.
+
+		`apply_milestone()` writes current_milestone and status onto the
+		container and the shipment, so removing the event that set them would
+		otherwise leave both quoting a milestone with nothing behind it — the
+		record would read "Arrived" over an empty timeline.
+		"""
+		touched = [("Shipment", self.shipment), ("Container", self.container)]
+		if self.container and not self.shipment:
+			# A container-wide event cascaded to every shipment in the box, so
+			# undoing it has to reach all of them too.
+			touched += [
+				("Shipment", name)
+				for name in frappe.get_all("Shipment", filters={"container": self.container}, pluck="name")
+			]
+		for doctype, name in touched:
+			if name and frappe.db.exists(doctype, name):
+				resync_from_events(doctype, name)
+
+
+def resync_from_events(doctype: str, name: str):
+	"""Re-derive current_milestone and status from the events that remain.
+
+	A shipment's timeline is the union of its own events and its container's —
+	the same rule get_timeline() reads by — so rewinding one has to look at
+	both. Reading only the shipment's own events sent a booking back to Open
+	while its box still said In Transit.
+	"""
+	if doctype == "Shipment":
+		or_filters = [["shipment", "=", name]]
+		box = frappe.db.get_value("Shipment", name, "container")
+		if box:
+			or_filters.append(["container", "=", box])
+	else:
+		or_filters = [["container", "=", name]]
+
+	latest = frappe.get_all(
+		"Tracking Event",
+		or_filters=or_filters,
+		fields=["milestone"],
+		order_by="event_datetime desc, creation desc",
+		limit=1,
+	)
+	if latest:
+		frappe.get_doc(doctype, name).apply_milestone(latest[0].milestone)
+		return
+
+	# Nothing left: back to where the record started. Cancelled is a decision
+	# somebody made, not a milestone that was recorded — leave it alone.
+	updates = {"current_milestone": None}
+	if frappe.db.get_value(doctype, name, "status") != "Cancelled":
+		updates["status"] = "Active" if doctype == "Container" else "Open"
+	frappe.db.set_value(doctype, name, updates, update_modified=False)

@@ -109,6 +109,11 @@ def run():
 	for prefix in SERIES_PREFIXES:
 		frappe.db.sql("delete from `tabSeries` where name like %s", (prefix + "%",))
 
+	# A wipe has to survive the next `bench migrate`. opening_repair seeds the
+	# shipped opening balance only while this is unset, so leave it set — this
+	# is what stops the deploy sweep putting back everything just deleted.
+	frappe.db.set_single_value("Logistics Settings", "opening_data_loaded", 1)
+
 	frappe.db.commit()
 
 	print("Deleted:")
@@ -117,4 +122,9 @@ def run():
 			print(f"  {doctype}: {count}")
 	print(f"Branches now: {frappe.get_all('Branch', pluck='name')}")
 	print("Kept: settings, milestone templates, roles, users, print formats, service items.")
+	print(
+		"The shipped opening balance will NOT be re-seeded on the next migrate. To ask for it\n"
+		"again, untick Logistics Settings → Opening data has been loaded, or run:\n"
+		"  bench --site <site> execute bwm_logistics.import_jm_excel.load_opening"
+	)
 	return deleted
