@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Trash2 } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
@@ -37,12 +37,70 @@ const form = reactive({
 	// goods and only the container knows whose is whose.
 	containers: [] as Array<{ container: string; label: string }>,
 	direction: "Import",
+	// The voyage. Typed once here and written down to every container on the
+	// booking — the sailing is the same for all of them, so asking per box was
+	// asking for the same answer several times.
+	shipping_line: "" as string | null,
+	vessel: "",
+	voyage_no: "",
+	booking_no: "",
+	port_of_loading: "" as string | null,
+	port_of_discharge: "" as string | null,
+	etd: "",
+	eta: "",
+	date_received: "",
 	consignee_name: "",
 	consignee_phone: "",
 	destination: "",
 	delivery_address: "",
 	charges: [] as ChargeRow[],
 });
+
+// Shipping lines and ports come from the masters list, filtered client-side,
+// with an inline create so an unknown one never blocks the booking.
+interface Masters {
+	shipping_lines: string[];
+	ports: string[];
+}
+const masters = ref<Masters>({ shipping_lines: [], ports: [] });
+onMounted(async () => {
+	try {
+		masters.value = await call<Masters>("bwm_logistics.api.containers.get_masters");
+	} catch {
+		/* dropdowns degrade to free entry */
+	}
+});
+
+type MasterHit = Record<string, unknown> & { name: string };
+function masterFetcher(list: () => string[]) {
+	return async (q: string): Promise<MasterHit[]> =>
+		list()
+			.filter((n) => n.toLowerCase().includes(q.toLowerCase()))
+			.slice(0, 20)
+			.map((n) => ({ name: n }));
+}
+const fetchLines = masterFetcher(() => masters.value.shipping_lines);
+const fetchPorts = masterFetcher(() => masters.value.ports);
+
+async function quickAdd(
+	doctype: "Shipping Line" | "Port",
+	field: "shipping_line" | "port_of_loading" | "port_of_discharge",
+	value: string,
+) {
+	if (!value) return;
+	try {
+		const res = await call<{ name: string }>("bwm_logistics.api.containers.quick_add_master", { doctype, value });
+		if (doctype === "Shipping Line" && !masters.value.shipping_lines.includes(res.name)) {
+			masters.value.shipping_lines.push(res.name);
+		} else if (doctype === "Port" && !masters.value.ports.includes(res.name)) {
+			masters.value.ports.push(res.name);
+		}
+		form[field] = res.name;
+		toast.success(`${doctype} “${res.name}” added`);
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not add");
+	}
+}
 
 // Server-searched link fields (SearchCombo fetchers).
 interface CustomerHit extends Record<string, unknown> {
@@ -126,6 +184,13 @@ async function save() {
 				...form,
 				customer: isTrading.value ? null : form.customer,
 				supplier: form.supplier || null,
+				// Empty date inputs are "", which a Date field must not be handed.
+				etd: form.etd || null,
+				eta: form.eta || null,
+				date_received: form.date_received || null,
+				shipping_line: form.shipping_line || null,
+				port_of_loading: form.port_of_loading || null,
+				port_of_discharge: form.port_of_discharge || null,
 				containers: form.containers.map((c) => c.container),
 				branch: branch.filter,
 				charges: form.charges.filter((c) => c.charge_type),
@@ -247,6 +312,77 @@ async function save() {
 						placeholder="Search container… (leave empty for loose cargo)"
 						@update:model-value="(v) => addContainer(v as string | null)"
 					/>
+				</div>
+			</div>
+		</FormSection>
+
+		<FormSection
+			title="Voyage &amp; dates"
+			hint="Entered once here and applied to every container on this booking — they all sail together."
+		>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div class="space-y-1.5">
+					<Label>Shipping line</Label>
+					<SearchCombo
+						v-model="form.shipping_line"
+						:fetcher="fetchLines"
+						value-key="name"
+						label-key="name"
+						placeholder="Search shipping line…"
+						create-label="Add line"
+						@create="(q) => quickAdd('Shipping Line', 'shipping_line', q)"
+					/>
+				</div>
+				<div class="space-y-1.5">
+					<Label for="s-vessel">Vessel</Label>
+					<Input id="s-vessel" v-model="form.vessel" placeholder="Vessel name" />
+				</div>
+				<div class="space-y-1.5">
+					<Label for="s-voyage">Voyage no</Label>
+					<Input id="s-voyage" v-model="form.voyage_no" spellcheck="false" />
+				</div>
+				<div class="space-y-1.5">
+					<Label for="s-booking">Booking no</Label>
+					<Input id="s-booking" v-model="form.booking_no" spellcheck="false" />
+				</div>
+				<div class="space-y-1.5">
+					<Label>Port of loading</Label>
+					<SearchCombo
+						v-model="form.port_of_loading"
+						:fetcher="fetchPorts"
+						value-key="name"
+						label-key="name"
+						placeholder="Search port…"
+						create-label="Add port"
+						@create="(q) => quickAdd('Port', 'port_of_loading', q)"
+					/>
+				</div>
+				<div class="space-y-1.5">
+					<Label>Port of discharge</Label>
+					<SearchCombo
+						v-model="form.port_of_discharge"
+						:fetcher="fetchPorts"
+						value-key="name"
+						label-key="name"
+						placeholder="Search port…"
+						create-label="Add port"
+						@create="(q) => quickAdd('Port', 'port_of_discharge', q)"
+					/>
+				</div>
+			</div>
+			<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+				<div class="space-y-1.5">
+					<Label for="s-etd">ETD</Label>
+					<Input id="s-etd" v-model="form.etd" type="date" />
+				</div>
+				<div class="space-y-1.5">
+					<Label for="s-eta">ETA</Label>
+					<Input id="s-eta" v-model="form.eta" type="date" />
+				</div>
+				<div class="space-y-1.5">
+					<Label for="s-received">Date received</Label>
+					<Input id="s-received" v-model="form.date_received" type="date" />
+					<p class="text-xs text-muted-foreground">Starts the demurrage clock on each box.</p>
 				</div>
 			</div>
 		</FormSection>

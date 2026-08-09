@@ -82,24 +82,15 @@ const form = reactive({
 	direction: "Import",
 	container_no: "",
 	container_type: "",
-	shipping_line: "" as string | null,
-	vessel: "",
 	bl_no: "",
-	booking_no: "",
-	port_of_loading: "" as string | null,
-	port_of_discharge: "" as string | null,
-	etd: "",
-	eta: "",
 	free_days: "",
 	contents: [blankLine()] as ContentRow[],
 });
 
 interface Masters {
-	shipping_lines: string[];
-	ports: string[];
 	container_types: string[];
 }
-const masters = ref<Masters>({ shipping_lines: [], ports: [], container_types: [] });
+const masters = ref<Masters>({ container_types: [] });
 onMounted(async () => {
 	try {
 		masters.value = await call<Masters>("bwm_logistics.api.containers.get_masters");
@@ -107,39 +98,6 @@ onMounted(async () => {
 		/* dropdowns degrade to free entry */
 	}
 });
-
-// Link-field fetchers: client-side filter over the masters list, with an
-// inline "create" action so unknown lines/ports never block the flow.
-type MasterHit = Record<string, unknown> & { name: string };
-function masterFetcher(list: () => string[]) {
-	return async (q: string): Promise<MasterHit[]> =>
-		list()
-			.filter((n) => n.toLowerCase().includes(q.toLowerCase()))
-			.slice(0, 20)
-			.map((n) => ({ name: n }));
-}
-const fetchLines = masterFetcher(() => masters.value.shipping_lines);
-const fetchPorts = masterFetcher(() => masters.value.ports);
-
-async function quickAdd(
-	doctype: "Shipping Line" | "Port",
-	field: "shipping_line" | "port_of_loading" | "port_of_discharge",
-	value: string,
-) {
-	if (!value) return;
-	try {
-		const res = await call<{ name: string }>("bwm_logistics.api.containers.quick_add_master", { doctype, value });
-		if (doctype === "Shipping Line" && !masters.value.shipping_lines.includes(res.name)) {
-			masters.value.shipping_lines.push(res.name);
-		} else if (doctype === "Port" && !masters.value.ports.includes(res.name)) {
-			masters.value.ports.push(res.name);
-		}
-		form[field] = res.name;
-		toast.success(`${doctype} “${res.name}” added`);
-	} catch (e: unknown) {
-		toast.error((e as { message?: string })?.message || "Could not add");
-	}
-}
 
 async function save() {
 	if (!form.direction) {
@@ -199,57 +157,12 @@ async function save() {
 					<Label for="c-bl">Master BL No</Label>
 					<Input id="c-bl" v-model="form.bl_no" spellcheck="false" />
 				</div>
-				<div class="space-y-1.5">
-					<Label for="c-booking">Booking No</Label>
-					<Input id="c-booking" v-model="form.booking_no" spellcheck="false" />
-				</div>
 			</div>
 		</FormSection>
 
-		<FormSection title="Voyage">
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-				<div class="space-y-1.5">
-					<Label>Shipping line</Label>
-					<SearchCombo
-						v-model="form.shipping_line"
-						:fetcher="fetchLines"
-						value-key="name"
-						label-key="name"
-						placeholder="Search shipping line…"
-						create-label="Add line"
-						@create="(q) => quickAdd('Shipping Line', 'shipping_line', q)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label for="c-vessel">Vessel</Label>
-					<Input id="c-vessel" v-model="form.vessel" placeholder="Vessel name" />
-				</div>
-				<div class="space-y-1.5">
-					<Label>Port of loading</Label>
-					<SearchCombo
-						v-model="form.port_of_loading"
-						:fetcher="fetchPorts"
-						value-key="name"
-						label-key="name"
-						placeholder="Search port…"
-						create-label="Add port"
-						@create="(q) => quickAdd('Port', 'port_of_loading', q)"
-					/>
-				</div>
-				<div class="space-y-1.5">
-					<Label>Port of discharge</Label>
-					<SearchCombo
-						v-model="form.port_of_discharge"
-						:fetcher="fetchPorts"
-						value-key="name"
-						label-key="name"
-						placeholder="Search port…"
-						create-label="Add port"
-						@create="(q) => quickAdd('Port', 'port_of_discharge', q)"
-					/>
-				</div>
-			</div>
-		</FormSection>
+		<!-- Voyage and dates are not asked for here. The sailing is the same for
+		     every box on a booking, so they are typed once on the shipment and
+		     written down from there — see Shipment.apply_voyage_to_containers(). -->
 
 		<FormSection
 			title="Contents"
@@ -319,16 +232,11 @@ async function save() {
 			</div>
 		</FormSection>
 
-		<FormSection title="Dates" hint="Free days start the demurrage clock once the box lands.">
+		<FormSection
+			title="Demurrage"
+			hint="Free days run from the day this box lands — the arrival date is entered on its shipment."
+		>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-				<div class="space-y-1.5">
-					<Label for="c-etd">ETD</Label>
-					<Input id="c-etd" v-model="form.etd" type="date" />
-				</div>
-				<div class="space-y-1.5">
-					<Label for="c-eta">ETA</Label>
-					<Input id="c-eta" v-model="form.eta" type="date" />
-				</div>
 				<div class="space-y-1.5">
 					<Label for="c-free">Free days</Label>
 					<Input id="c-free" v-model="form.free_days" type="number" min="0" inputmode="numeric" />

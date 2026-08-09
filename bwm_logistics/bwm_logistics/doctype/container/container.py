@@ -148,8 +148,15 @@ class Container(Document):
 		self.milestone_template = get_default(self.direction)
 
 	def set_demurrage_start(self):
-		if self.ata and self.free_days and not self.demurrage_start_date:
-			self.demurrage_start_date = add_days(self.ata, int(self.free_days))
+		"""Free days run from the day the box landed, so a corrected arrival
+		date has to move the clock with it — the booking can now set ATA (as
+		"date received"), which makes a stale demurrage date easy to create."""
+		if not (self.ata and self.free_days):
+			return
+		expected = add_days(self.ata, int(self.free_days))
+		before = self.get_doc_before_save()
+		if not self.demurrage_start_date or (before and before.ata != self.ata):
+			self.demurrage_start_date = expected
 
 	def milestone_options(self) -> list[dict]:
 		"""The template's milestone rows (for the record-milestone UI)."""

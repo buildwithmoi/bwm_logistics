@@ -22,6 +22,28 @@ MILESTONE_STATUS = {
 
 TRADING = "Own Goods (Trading)"
 
+# The voyage is a property of the sailing, so it is typed once on the booking
+# and written down to every box riding on it. The container keeps the fields
+# because that is where they are read from: the carrier feed polls by container
+# number (carrier_tracking.sync_container), demurrage is computed from the
+# box's own ATA, the public tracker takes a container number, and a
+# consolidated box shared by several bookings must still be able to state its
+# own voyage. Left of the arrow is the shipment's field, right is the
+# container's.
+VOYAGE_FIELDS = {
+	"shipping_line": "shipping_line",
+	"vessel": "vessel",
+	"voyage_no": "voyage_no",
+	"booking_no": "booking_no",
+	"port_of_loading": "port_of_loading",
+	"port_of_discharge": "port_of_discharge",
+	"etd": "etd",
+	"eta": "eta",
+	# "Date received" is the day the box landed — the container calls it ATA,
+	# and Container.set_demurrage_start() starts the free-days clock from it.
+	"date_received": "ata",
+}
+
 MANIFEST_FIELDS = [
 	"parent",
 	"idx",
@@ -210,6 +232,39 @@ class Shipment(Document):
 		self.compute_totals()
 		self.sync_direction_from_container()
 		self.check_distribution_products()
+
+	def on_update(self):
+		self.apply_voyage_to_containers()
+
+	def apply_voyage_to_containers(self):
+		"""Push the booking's voyage onto every box riding on it.
+
+		Typed once here instead of once per container — the sailing is the same
+		for all of them. Only fields this shipment actually has a value for are
+		written, so a blank never wipes something the carrier feed or a
+		container-specific correction put there.
+		"""
+		boxes = [row.container for row in self.containers if row.container]
+		if not boxes:
+			return
+
+		wanted = {
+			target: self.get(source) for source, target in VOYAGE_FIELDS.items() if self.get(source)
+		}
+		if not wanted:
+			return
+
+		for name in boxes:
+			box = frappe.get_doc("Container", name)
+			changed = {f: v for f, v in wanted.items() if box.get(f) != v}
+			if not changed:
+				continue
+			for field, value in changed.items():
+				box.set(field, value)
+			# A real save, not db.set_value: set_demurrage_start() has to see the
+			# new ATA and move the free-days clock with it.
+			box.flags.ignore_permissions = True
+			box.save(ignore_permissions=True)
 
 	def sync_containers(self):
 		"""Keep the single `container` link in step with the `containers` table.

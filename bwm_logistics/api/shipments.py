@@ -20,6 +20,10 @@ SHIPMENT_FIELDS = [
 	"customer", "supplier", "shipment_type", "direction", "status", "container", "notify_customer",
 	"shipper_name", "shipper_phone", "origin",
 	"consignee_name", "consignee_phone", "destination", "delivery_address",
+	# The voyage: typed once here, written down to every container on the
+	# booking by Shipment.apply_voyage_to_containers().
+	"shipping_line", "vessel", "voyage_no", "booking_no",
+	"port_of_loading", "port_of_discharge", "etd", "eta", "date_received",
 	"notes", "branch",
 ]
 

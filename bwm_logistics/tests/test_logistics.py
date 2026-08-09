@@ -887,6 +887,79 @@ class TestStockDistribution(IntegrationTestCase):
 		self.assertIn("stock", access.ROLE_PAGES["Logistics Operations"])
 
 
+class TestVoyageOnTheBooking(IntegrationTestCase):
+	"""The sailing is typed once on the shipment and written down to every box
+	riding on it — nobody retypes a vessel or an ETA per container."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def _booking(self, boxes=2, **voyage):
+		containers = [
+			frappe.get_doc({"doctype": "Container", "direction": "Import", "free_days": 7}).insert(
+				ignore_permissions=True
+			)
+			for _ in range(boxes)
+		]
+		ship = frappe.get_doc(
+			{
+				"doctype": "Shipment",
+				"shipment_type": "Own Goods (Trading)",
+				"direction": "Import",
+				"containers": [{"container": c.name} for c in containers],
+				**voyage,
+			}
+		).insert(ignore_permissions=True)
+		return ship, containers
+
+	def test_the_voyage_reaches_every_container(self):
+		ship, boxes = self._booking(
+			vessel="MV Testudo", voyage_no="V-77", etd="2026-08-01", eta="2026-09-10"
+		)
+		for box in boxes:
+			row = frappe.db.get_value("Container", box.name, ["vessel", "voyage_no", "etd", "eta"], as_dict=True)
+			self.assertEqual(row.vessel, "MV Testudo")
+			self.assertEqual(row.voyage_no, "V-77")
+			self.assertEqual(str(row.etd), "2026-08-01")
+			self.assertEqual(str(row.eta), "2026-09-10")
+
+	def test_date_received_lands_as_ata_and_starts_the_clock(self):
+		"""Free days run from the day the box landed, so the booking's arrival
+		date has to reach the container's ATA and move demurrage with it."""
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+		row = frappe.db.get_value("Container", boxes[0].name, ["ata", "demurrage_start_date"], as_dict=True)
+		self.assertEqual(str(row.ata), "2026-09-12")
+		self.assertEqual(str(row.demurrage_start_date), "2026-09-19")  # +7 free days
+
+		# Correcting the date has to move the clock, not leave it where it was.
+		ship.date_received = "2026-09-22"
+		ship.save(ignore_permissions=True)
+		row = frappe.db.get_value("Container", boxes[0].name, ["ata", "demurrage_start_date"], as_dict=True)
+		self.assertEqual(str(row.ata), "2026-09-22")
+		self.assertEqual(str(row.demurrage_start_date), "2026-09-29")
+
+	def test_a_blank_on_the_booking_never_wipes_the_box(self):
+		"""The carrier feed writes ETA/vessel straight onto the container. A
+		booking that simply has not been filled in must not erase that."""
+		ship, boxes = self._booking(boxes=1, vessel="MV Testudo")
+		frappe.db.set_value("Container", boxes[0].name, "ata", "2026-09-01")
+
+		ship.reload()
+		ship.vessel = ""  # cleared on the booking, not "set to empty on the box"
+		ship.save(ignore_permissions=True)
+
+		row = frappe.db.get_value("Container", boxes[0].name, ["vessel", "ata"], as_dict=True)
+		self.assertEqual(row.vessel, "MV Testudo")
+		self.assertEqual(str(row.ata), "2026-09-01")
+
+	def test_a_consolidated_box_can_still_state_its_own_voyage(self):
+		"""Two bookings can share a box, so the fields stay on the container —
+		this is why the voyage was written down rather than moved."""
+		box = frappe.get_doc({"doctype": "Container", "direction": "Import"}).insert(ignore_permissions=True)
+		frappe.db.set_value("Container", box.name, "vessel", "MV Shared")
+		self.assertEqual(frappe.db.get_value("Container", box.name, "vessel"), "MV Shared")
+
+
 class TestTrackingEventDeletion(IntegrationTestCase):
 	"""The milestone log is append-only for the people recording it and
 	correctable by a manager — an admin has to be able to clear a site down to

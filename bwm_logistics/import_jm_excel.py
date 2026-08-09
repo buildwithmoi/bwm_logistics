@@ -263,6 +263,10 @@ def load(data: dict) -> dict:
 				"direction": "Import",
 				"containers": [{"container": container.name}],
 				"branch": branch,
+				# The voyage lives on the booking now, so the operator sees the
+				# dates where they are edited rather than only on the box.
+				"eta": row.get("eta"),
+				"date_received": row.get("date_received") if row.get("status") == "Arrived" else None,
 				"notes": "\n".join(notes) or None,
 			}
 		)

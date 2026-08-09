@@ -18,6 +18,17 @@
   "containers",
   "branch",
   "notify_customer",
+  "voyage_section",
+  "shipping_line",
+  "vessel",
+  "voyage_no",
+  "booking_no",
+  "column_break_voyage",
+  "port_of_loading",
+  "port_of_discharge",
+  "etd",
+  "eta",
+  "date_received",
   "parties_section",
   "shipper_name",
   "shipper_phone",
@@ -123,11 +134,11 @@
    "options": "Container"
   },
   {
+   "description": "Every box this booking is carried in.",
    "fieldname": "containers",
    "fieldtype": "Table",
    "label": "Containers",
-   "options": "Shipment Container",
-   "description": "Every box this booking is carried in."
+   "options": "Shipment Container"
   },
   {
    "fieldname": "branch",
@@ -141,6 +152,64 @@
    "fieldname": "notify_customer",
    "fieldtype": "Check",
    "label": "Notify Customer"
+  },
+  {
+   "fieldname": "voyage_section",
+   "fieldtype": "Section Break",
+   "label": "Voyage & Dates"
+  },
+  {
+   "fieldname": "shipping_line",
+   "fieldtype": "Link",
+   "label": "Shipping Line",
+   "options": "Shipping Line"
+  },
+  {
+   "fieldname": "vessel",
+   "fieldtype": "Data",
+   "label": "Vessel"
+  },
+  {
+   "fieldname": "voyage_no",
+   "fieldtype": "Data",
+   "label": "Voyage No"
+  },
+  {
+   "fieldname": "booking_no",
+   "fieldtype": "Data",
+   "label": "Booking No"
+  },
+  {
+   "fieldname": "column_break_voyage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "port_of_loading",
+   "fieldtype": "Link",
+   "label": "Port of Loading",
+   "options": "Port"
+  },
+  {
+   "fieldname": "port_of_discharge",
+   "fieldtype": "Link",
+   "label": "Port of Discharge",
+   "options": "Port"
+  },
+  {
+   "fieldname": "etd",
+   "fieldtype": "Date",
+   "label": "ETD"
+  },
+  {
+   "fieldname": "eta",
+   "fieldtype": "Date",
+   "label": "ETA"
+  },
+  {
+   "description": "When the box actually landed. Written down to every container on this booking as its ATA, which is what starts the demurrage clock.",
+   "fieldname": "date_received",
+   "fieldtype": "Date",
+   "label": "Date Received"
   },
   {
    "fieldname": "parties_section",

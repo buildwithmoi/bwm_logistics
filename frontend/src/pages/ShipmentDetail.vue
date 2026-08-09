@@ -76,7 +76,7 @@ const sections = computed(() =>
 	[
 		{ key: "timeline", label: "Timeline" },
 		{ key: "containers", label: `Containers${boxes.value.length ? ` (${boxes.value.length})` : ""}` },
-		{ key: "route", label: isTrading.value ? "Route" : "Consignee" },
+		{ key: "voyage", label: "Voyage" },
 		{ key: "billing", label: "Charges" },
 		...(isTrading.value ? [{ key: "goods", label: "Goods" }] : []),
 	].filter(Boolean),
@@ -95,6 +95,21 @@ const routeRows = computed(() => [
 	{ label: "Origin", value: data.value?.origin as string },
 	{ label: "Destination", value: data.value?.destination as string },
 	{ label: "Delivery address", value: data.value?.delivery_address as string, wide: true },
+]);
+
+// The voyage belongs to the booking — one sailing, however many boxes ride on
+// it. DataList drops whatever is blank, so a booking with no vessel yet shows
+// nothing here rather than a column of dashes.
+const voyageRows = computed(() => [
+	{ label: "Shipping line", value: data.value?.shipping_line as string },
+	{ label: "Vessel", value: data.value?.vessel as string },
+	{ label: "Voyage no", value: data.value?.voyage_no as string },
+	{ label: "Booking no", value: data.value?.booking_no as string },
+	{ label: "Load port", value: data.value?.port_of_loading as string },
+	{ label: "Discharge port", value: data.value?.port_of_discharge as string },
+	{ label: "ETD", value: fmtDate(data.value?.etd as string) },
+	{ label: "ETA", value: fmtDate(data.value?.eta as string) },
+	{ label: "Date received", value: fmtDate(data.value?.date_received as string) },
 ]);
 
 // The P&L card is a claim that money has moved. Until an invoice or a purchase
@@ -394,9 +409,13 @@ async function makeInvoice() {
 						</RouterLink>
 					</template>
 
-					<template v-else-if="section === 'route'">
-<!-- Parties -->
+					<template v-else-if="section === 'voyage'">
+<!-- The sailing, and the parties at each end of it -->
 		<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+			<h2 class="label-caps mb-2 sm:mb-4">Voyage &amp; dates</h2>
+			<DataList :items="voyageRows" empty-text="No sailing recorded yet." />
+		</div>
+		<div class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 			<h2 class="label-caps mb-2 sm:mb-4">{{ isTrading ? "Route" : "Consignee &amp; route" }}</h2>
 			<DataList :items="routeRows" empty-text="No route or consignee recorded yet." />
 		</div>

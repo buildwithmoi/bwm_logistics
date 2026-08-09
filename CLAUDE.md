@@ -339,6 +339,21 @@ fails the suite rather than quietly lengthening a page.
   leaves it alone.
 - **Consignee applies to customer cargo only.** On own goods the receiver is the
   company, so the fields don't render.
+- **The voyage is typed on the shipment and written down to its boxes.** One
+  sailing carries every container on a booking, so `Shipment` holds shipping
+  line, vessel, voyage no, booking no, both ports, ETD, ETA and `date_received`;
+  `apply_voyage_to_containers()` (on_update) copies them onto each linked
+  Container, mapping **`date_received` → `Container.ata`**, which is what starts
+  the free-days clock. The container form no longer asks for any of it.
+  **The fields stay on Container and were not moved**, because that is where
+  they are read: `carrier_tracking.sync_container()` polls by container number
+  and writes eta/ata/atd/vessel back, demurrage is computed from the box's own
+  ATA, `api/track.py` takes a container number, and a consolidated box shared by
+  several bookings must be able to state its own voyage. Only fields the
+  shipment actually has a value for are written, so a blank booking never wipes
+  what the carrier put there. `bl_no` and `seal_no` also stay on the box —
+  `bl_no` is half the importer's identity key (`container_no` + `bl_no`) and a
+  seal is physically per-container.
 
 ## Watch out for
 
