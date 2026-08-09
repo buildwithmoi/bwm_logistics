@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft } from "lucide-vue-next";
+import { ChevronLeft, ChevronDown } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 
 // The header every record screen wears.
@@ -19,7 +19,10 @@ const props = defineProps<{
 	subtitle?: string;
 	backTo: string;
 	backLabel?: string;
+	/** Accessible name for the badge-as-button, when `#statusAction` is used. */
+	statusActionLabel?: string;
 }>();
+const emit = defineEmits<{ (e: "status-click"): void }>();
 
 const router = useRouter();
 function goBack() {
@@ -46,12 +49,25 @@ function goBack() {
 			</div>
 		</div>
 
-		<!-- Row 2: the record itself -->
+		<!-- Row 2: the record itself. The status badge beside the title IS the
+		     control that changes it — one status, one place, one action. -->
 		<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
 			<h1 class="min-w-0 truncate text-xl font-semibold tracking-tight sm:text-2xl">{{ title }}</h1>
-			<div v-if="$slots.badges" class="flex flex-wrap items-center gap-1.5">
+			<component
+				:is="$slots.statusAction ? 'button' : 'div'"
+				v-if="$slots.badges"
+				:type="$slots.statusAction ? 'button' : undefined"
+				class="flex flex-wrap items-center gap-1.5 rounded-full"
+				:class="
+					$slots.statusAction &&
+					'touch-manipulation px-1 py-0.5 -mx-1 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500'
+				"
+				:aria-label="$slots.statusAction ? statusActionLabel || 'Update status' : undefined"
+				@click="$slots.statusAction && emit('status-click')"
+			>
 				<slot name="badges" />
-			</div>
+				<ChevronDown v-if="$slots.statusAction" class="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+			</component>
 		</div>
 		<p v-if="subtitle" class="mt-1 text-pretty text-[13px] text-muted-foreground">{{ subtitle }}</p>
 	</header>

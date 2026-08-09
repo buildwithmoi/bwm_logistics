@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { settle } from "./settle";
 import { measureOverflow } from "./overflow";
 
 // Detail screens can only be reached by opening a record, so the route sweep
@@ -13,15 +14,6 @@ const VIEWPORTS = [
 	{ name: "desktop", width: 1440, height: 900 },
 ];
 
-async function settle(page: Page) {
-	await page.waitForLoadState("networkidle").catch(() => {});
-	await page
-		.getByText(/^Loading…$/)
-		.first()
-		.waitFor({ state: "detached", timeout: 8000 })
-		.catch(() => {});
-	await page.waitForTimeout(400);
-}
 
 /** Open the first record in a list the way a user does. */
 async function openFirst(page: Page, list: string, width: number) {
@@ -48,11 +40,21 @@ for (const vp of VIEWPORTS) {
 				fs.mkdirSync(`${SHOT_DIR}/detail-${vp.name}`, { recursive: true });
 				await page.screenshot({ path: `${SHOT_DIR}/detail-${vp.name}/${slug}.png`, fullPage: true });
 
-				// Back must be a real, labelled control — not a bare arrow.
-				const back = page.getByRole("button", { name: /Containers|Shipments/ }).first();
+				// Back must be a real, labelled control — not a bare arrow. Scope
+				// it to the page header: the bottom tab bar also says "Containers".
+				const back = page.locator("header").getByRole("button", { name: /Containers|Shipments/ }).first();
 				await expect(back).toBeVisible();
 				const box = (await back.boundingBox())!;
 				expect(box.height, "back control is a 40px+ touch target").toBeGreaterThanOrEqual(36);
+
+				// §2: one status, one place. No control may repeat another's name.
+				const names = await page.evaluate(() =>
+					[...document.querySelectorAll("main button, main a[href]")]
+						.map((el) => (el.getAttribute("aria-label") || el.textContent || "").trim().toLowerCase())
+						.filter((n) => n.length > 2),
+				);
+				const dupes = names.filter((n, i) => names.indexOf(n) !== i && /status|update/.test(n));
+				expect([...new Set(dupes)], `${slug} has duplicate status controls`).toEqual([]);
 
 				if (vp.width <= 430) {
 					const of = await measureOverflow(page);

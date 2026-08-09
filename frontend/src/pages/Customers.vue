@@ -10,7 +10,8 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import { CUSTOMER_LIST, columnsFor } from "@/lib/views";
 
 const router = useRouter();
 const toast = useToast();
@@ -53,14 +54,9 @@ watch(search, () => {
 });
 onMounted(load);
 
-const columns: Column[] = [
-	{ key: "customer_name", label: "Customer", primary: true },
-	{ key: "mobile_no", label: "Phone", nowrap: true },
-	{ key: "email_id", label: "Email" },
-	{ key: "shipment_count", label: "Shipments", numeric: true },
-	{ key: "portal_user", label: "Portal access" },
-	{ key: "statement", label: "", class: "w-28", trailing: true },
-];
+// Columns from lib/views.ts. `shipment_count` is gone: it answers a question
+// nobody opens this screen to ask, and it read the same on every row.
+const columns = computed(() => columnsFor(CUSTOMER_LIST, {}, rows.value));
 
 // ── create dialog ───────────────────────────────────────────────────────────
 const createOpen = ref(false);

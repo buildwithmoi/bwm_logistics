@@ -180,6 +180,41 @@ indentation, line length 110; prettier + eslint for JS/Vue).
   (label/value pairs on record screens). `DataTable` takes an optional
   `rowTone` for a coloured left edge — reserved for "needs attention"; accent
   everything and it signals nothing.
+
+## What a screen is allowed to show
+
+A detail view answers a question; it is not a rendering of the table schema.
+These rules are enforced by `frontend/tests/simplicity.spec.ts`, so breaking one
+fails the suite rather than quietly lengthening a page.
+
+- **`DataList`/`DataRow` drop blank values.** Pass `items` and a section with
+  nothing in it collapses to one line plus an action, instead of eleven rows of
+  em-dashes. `show-empty` restores the dashes and belongs only on a form, where
+  the blank row *is* the affordance. `isBlank()` (in `lib/format.ts`) also
+  treats `"—"` and `"— / —"` as empty, because the formatters emit those.
+- **`lib/views.ts` is the single statement of what each list shows.** Columns
+  live there, not inline in the page, and `columnsFor()` drops a column when a
+  filter has pinned it (pick a status → the Status column goes) or when no row
+  on screen can fill it (`showWhen`). A column that reads the same in every row
+  is decoration — the test enforces this against the fixtures.
+- **One filter bar per list** (`ui/ListToolbar.vue`): search and a secondary
+  lens share a line, and there is exactly one pill row. Never two controls
+  labelled "All".
+- **One identifier per row.** Lead with the number a person quotes on the
+  phone; the internal `CONT-…` name lives on the detail page.
+- **One status, one place, one action.** The status badge in `DetailHeader` *is*
+  the control (`#statusAction`); there is no second button and no "current
+  status" card repeating it.
+- **A panel with nothing in it does not render.** The shipment P&L card appears
+  only once an invoice or purchase exists, and only for own-goods — on customer
+  cargo it is their freight bill, not our margin. Own goods likewise render no
+  consignee fields: there is nobody to consign to.
+- **The portal never shows cost, margin, supplier or purchase.** Enforced twice:
+  `simplicity.spec.ts` loads every portal route **as a real customer** (a staff
+  session is redirected to the dashboard and would pass vacuously) with fixtures
+  that deliberately include those keys, and
+  `bwm_logistics/tests/test_portal_isolation.py` asserts the endpoints never
+  return them and refuse another customer's record.
 - **Two mobile-layout traps, both fixed globally — don't reintroduce them:**
   a responsive grid written as `grid sm:grid-cols-2` has *no* base column, so
   its implicit `auto` track takes a min-content floor and overflows a phone —

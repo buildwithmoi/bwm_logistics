@@ -1,5 +1,18 @@
 // Small display formatters shared across pages.
 
+/**
+ * "Nothing was recorded here."
+ *
+ * Covers the em-dash the formatters below emit for a missing value, and the
+ * "— / —" a page builds by joining two of them — so a detail screen can drop
+ * unrecorded rows without every caller pre-cleaning its strings first.
+ */
+export function isBlank(v: unknown): boolean {
+	if (v === null || v === undefined) return true;
+	const s = String(v).trim();
+	return s === "" || /^[—–\-/\s]+$/.test(s);
+}
+
 export function fmtDate(d?: string | null): string {
 	if (!d) return "—";
 	try {

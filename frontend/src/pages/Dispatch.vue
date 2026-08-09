@@ -11,7 +11,8 @@ import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Dialog from "@/components/ui/Dialog.vue";
-import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import { DISPATCH_LIST, columnsFor } from "@/lib/views";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 
@@ -59,14 +60,8 @@ onMounted(() => {
 	if (isDispatcher.value) loadAssignable();
 });
 
-const columns: Column[] = [
-	{ key: "name", label: "Run", primary: true },
-	{ key: "run_date", label: "Date", nowrap: true },
-	{ key: "driver_name", label: "Driver" },
-	{ key: "status", label: "Status", trailing: true },
-	{ key: "stops", label: "Stops", numeric: true },
-	{ key: "cod", label: "COD", numeric: true },
-];
+// Columns from lib/views.ts; Status drops out once a status filter pins it.
+const columns = computed(() => columnsFor(DISPATCH_LIST, { status: statusFilter.value }, rows.value));
 const STATUSES = ["", "Scheduled", "In Transit", "Completed"];
 
 // ── assignable pool (dispatcher) ────────────────────────────────────────────

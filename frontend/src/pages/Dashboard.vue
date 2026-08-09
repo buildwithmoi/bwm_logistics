@@ -66,6 +66,26 @@ const shipmentGroups = computed<BarGroup[]>(
 );
 const pipelineTotal = computed(() => data.value?.pipeline.reduce((n, p) => n + p.count, 0) || 0);
 const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
+
+// A chart with no data is an empty axis pretending to be information. Only
+// draw one once a bar would have height.
+const hasRevenue = computed(() => revenueGroups.value.some((g) => g.a || g.b));
+const hasShipmentHistory = computed(() => shipmentGroups.value.some((g) => g.a || g.b));
+
+// Money: one card with a breakdown rather than five tiles reading 0.00. The
+// tiles come back the moment any of them has a figure worth its own card.
+const moneyMoved = computed(() => {
+	const d = data.value;
+	if (!d) return false;
+	return !!(d.revenue_mtd || d.collected_mtd || d.outstanding_total || d.cod_unreconciled);
+});
+
+// Three cards each saying "nothing" is worse than one line saying it once.
+const quietWeek = computed(() => {
+	const d = data.value;
+	if (!d) return false;
+	return !d.arriving_week.length && !d.top_customers.length && !d.recent_payments.length;
+});
 </script>
 
 <template>
@@ -96,8 +116,26 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 				<RouterLink to="/containers" class="shrink-0 text-sm font-semibold text-red-700 hover:underline">Review →</RouterLink>
 			</div>
 
-			<!-- ── Money row ─────────────────────────────────────────────── -->
-			<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" :class="hasProfit && 'xl:grid-cols-5'">
+			<!-- ── Money ─────────────────────────────────────────────────── -->
+			<!-- Nothing has been billed yet: one line and the action that starts
+			     it, not five tiles reading 0.00. -->
+			<div
+				v-if="!moneyMoved"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3.5 ring-1 ring-gray-100 sm:px-5"
+			>
+				<p class="text-sm text-muted-foreground">
+					No money has moved this month — revenue appears here once you raise an invoice.
+				</p>
+				<RouterLink
+					v-if="session.canSee('billing')"
+					to="/billing/invoice/new"
+					class="shrink-0 text-sm font-semibold text-brand-700 hover:underline"
+				>
+					New invoice →
+				</RouterLink>
+			</div>
+
+			<div v-else class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" :class="hasProfit && 'xl:grid-cols-5'">
 				<StatCard :value="fmtMoney(data.revenue_mtd)" label="Invoiced this month" />
 				<StatCard :value="fmtMoney(data.collected_mtd)" label="Collected this month" />
 				<StatCard :value="fmtMoney(data.outstanding_total)" label="Outstanding · ">
@@ -154,24 +192,36 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 				</div>
 			</div>
 
-			<!-- ── Charts row ────────────────────────────────────────────── -->
-			<div class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-2">
-				<div class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+			<!-- ── Charts ────────────────────────────────────────────────── -->
+			<!-- An empty axis is not information; the cards simply don't render
+			     until a bar would have height. -->
+			<div
+				v-if="hasRevenue || hasShipmentHistory"
+				class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4"
+				:class="hasRevenue && hasShipmentHistory && 'lg:grid-cols-2'"
+			>
+				<div v-if="hasRevenue" class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Revenue — invoiced vs collected (12m)</h2>
 					<BarChart :groups="revenueGroups" series-a="Invoiced" series-b="Collected" :height="180" />
 				</div>
-				<div class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+				<div v-if="hasShipmentHistory" class="min-w-0 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-4 text-[15px] font-semibold tracking-tight">Shipments — imports vs exports (12m)</h2>
 					<BarChart :groups="shipmentGroups" series-a="Imports" series-b="Exports" :height="180" />
 				</div>
 			</div>
 
-			<!-- ── Lists row ─────────────────────────────────────────────── -->
-			<div class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-3">
+			<!-- ── Lists ─────────────────────────────────────────────────── -->
+			<!-- Three cards each saying "nothing" say it once instead. -->
+			<div v-if="quietWeek" class="mt-3 rounded-2xl bg-white px-4 py-3.5 ring-1 ring-gray-100 sm:mt-4 sm:px-5">
+				<p class="text-sm text-muted-foreground">
+					Nothing arriving, invoiced or paid this week yet.
+				</p>
+			</div>
+
+			<div v-else class="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-3">
 				<!-- Arriving this week -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+				<div v-if="data.arriving_week.length" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Arriving this week</h2>
-					<div v-if="!data.arriving_week.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">Nothing due this week.</div>
 					<div v-for="c in data.arriving_week" :key="c.name" class="flex items-center justify-between gap-2 border-t border-gray-100 py-2.5 text-sm first:border-0">
 						<div class="min-w-0">
 							<RouterLink :to="`/containers/${c.name}`" class="font-medium text-brand-700 hover:underline">{{ c.container_no || c.name }}</RouterLink>
@@ -185,9 +235,8 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 				</div>
 
 				<!-- Top customers MTD -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+				<div v-if="data.top_customers.length" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Top customers (this month)</h2>
-					<div v-if="!data.top_customers.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">No invoices yet this month.</div>
 					<div v-for="(c, i) in data.top_customers" :key="c.customer" class="flex items-center gap-3 border-t border-gray-100 py-2.5 text-sm first:border-0">
 						<span class="w-4 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{{ i + 1 }}</span>
 						<span class="min-w-0 flex-1 truncate">{{ c.customer }}</span>
@@ -196,9 +245,8 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 				</div>
 
 				<!-- Recent payments -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+				<div v-if="data.recent_payments.length" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Recent payments</h2>
-					<div v-if="!data.recent_payments.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">No payments yet.</div>
 					<div v-for="p in data.recent_payments" :key="p.name" class="flex items-center justify-between gap-2 border-t border-gray-100 py-2.5 text-sm first:border-0">
 						<div class="min-w-0">
 							<div class="truncate font-medium">{{ p.party_name }}</div>
@@ -222,12 +270,9 @@ const hasProfit = computed(() => data.value?.profit_mtd !== undefined);
 			</div>
 
 			<!-- ── Activity ──────────────────────────────────────────────── -->
-			<div class="mt-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:mt-4 sm:p-6">
+			<div v-if="data.recent_events.length" class="mt-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:mt-4 sm:p-6">
 				<h2 class="mb-3 text-[15px] font-semibold tracking-tight">Latest milestones</h2>
-				<div v-if="!data.recent_events.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
-					No activity yet.
-				</div>
-				<ul v-else class="divide-y divide-gray-100">
+				<ul class="divide-y divide-gray-100">
 					<li v-for="e in data.recent_events" :key="e.name" class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2.5 sm:flex-nowrap">
 						<span class="order-2 shrink-0 text-xs tabular-nums text-muted-foreground sm:order-none sm:w-28">{{ fmtDateTime(e.event_datetime) }}</span>
 						<span class="order-1 min-w-0 flex-[1_0_100%] truncate text-sm sm:order-none sm:flex-1">

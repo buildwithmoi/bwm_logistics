@@ -380,19 +380,121 @@ export const RESPONSES: Record<string, unknown> = {
 };
 
 /**
- * Serve `RESPONSES` for any matching whitelisted call; everything else hits
- * the real bench. Install before `page.goto`.
+ * A brand-new site: every list empty, every figure zero. This is a real
+ * customer's first ten minutes, and the screens have to say what to do next
+ * rather than print a wall of "0.00" and "No data".
  */
-export async function useFixtures(page: Page) {
+export const EMPTY_RESPONSES: Record<string, unknown> = {
+	"bwm_logistics.api.dashboard.get_overview": {
+		revenue_mtd: 0,
+		collected_mtd: 0,
+		outstanding_total: 0,
+		overdue_count: 0,
+		containers_active: 0,
+		containers_import: 0,
+		containers_export: 0,
+		shipments_active: 0,
+		shipments_import: 0,
+		shipments_export: 0,
+		pipeline: [],
+		demurrage_risk: [],
+		cod_unreconciled: 0,
+		arriving_week: [],
+		top_customers: [],
+		recent_payments: [],
+		revenue_months: months.map((label) => ({ month: label, label, invoiced: 0, collected: 0 })),
+		shipment_months: months.map((label) => ({ month: label, label, imports: 0, exports: 0 })),
+		recent_events: [],
+	},
+	"bwm_logistics.api.customers.list_customers": { rows: [], total: 0 },
+	"bwm_logistics.api.shipments.list_shipments": { rows: [], total: 0 },
+	"bwm_logistics.api.containers.list_containers": { rows: [], total: 0 },
+	"bwm_logistics.api.billing.list_invoices": { rows: [], total: 0 },
+	"bwm_logistics.api.billing.overview": {
+		unpaid_total: 0,
+		unpaid_count: 0,
+		overdue_count: 0,
+		collected_this_month: 0,
+		uninvoiced: [],
+	},
+	"bwm_logistics.api.dispatch.list_runs": { rows: [], total: 0 },
+};
+
+/**
+ * Portal payloads salted with things a customer must never see.
+ *
+ * The server already selects explicit fields, so these keys shouldn't reach the
+ * wire — but a future `as_dict()` would leak them silently. Feeding them in
+ * here proves the *pages* don't render them either, so the leak has to get past
+ * two independent gates.
+ */
+export const LEAKY_PORTAL: Record<string, unknown> = {
+	"bwm_logistics.api.portal.overview": {
+		active_count: 2,
+		unpaid_invoices: 1,
+		recent: [
+			{
+				name: "BWM-000148",
+				status: "In Transit",
+				current_milestone: "Vessel departed",
+				destination: "Kumasi",
+				cost: 4200,
+				margin: 31.5,
+				supplier: "Shanghai Poultry Co",
+				purchase_total: 18000,
+			},
+		],
+		margin: 31.5,
+		purchase_total: 18000,
+	},
+	"bwm_logistics.api.portal.my_shipments": {
+		rows: [
+			{
+				name: "BWM-000148",
+				status: "In Transit",
+				destination: "Kumasi",
+				total_charges: 18450,
+				cost: 4200,
+				margin: 31.5,
+				supplier: "Shanghai Poultry Co",
+			},
+		],
+		total: 1,
+	},
+	"bwm_logistics.api.portal.my_invoices": {
+		rows: [
+			{
+				name: "ACC-SINV-2026-00231",
+				status: "Unpaid",
+				grand_total: 18450,
+				outstanding_amount: 18450,
+				currency: "GHS",
+				posting_date: "2026-08-01",
+				cost: 4200,
+				margin: 31.5,
+				supplier: "Shanghai Poultry Co",
+			},
+		],
+		total: 1,
+	},
+	"bwm_logistics.api.portal.my_pickups": { rows: [], total: 0 },
+	"bwm_logistics.api.portal.my_notifications": { rows: [], total: 0 },
+};
+
+/**
+ * Serve canned responses for any matching whitelisted call; everything else
+ * hits the real bench. Install before `page.goto`.
+ */
+export async function useFixtures(page: Page, responses: Record<string, unknown> = RESPONSES) {
 	await page.route("**/api/method/**", async (route) => {
 		const method = decodeURIComponent(
 			route.request().url().split("/api/method/")[1] || "",
 		);
-		if (method in RESPONSES) {
+		if (method in responses) {
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
-				body: JSON.stringify({ message: RESPONSES[method] }),
+				body: JSON.stringify({ message: responses[method] }),
 			});
 			return;
 		}

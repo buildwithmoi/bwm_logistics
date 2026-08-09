@@ -6,6 +6,9 @@ import {
 	STAFF_USER,
 	STAFF_PWD,
 	STORAGE_STATE,
+	PORTAL_USER,
+	PORTAL_PWD,
+	PORTAL_STATE,
 } from "../playwright.config";
 
 // Logs in over the Frappe REST endpoint (no UI typing) and parks the session
@@ -18,4 +21,15 @@ setup("authenticate staff", async ({ request }) => {
 
 	fs.mkdirSync(path.dirname(STORAGE_STATE), { recursive: true });
 	await request.storageState({ path: STORAGE_STATE });
+});
+
+// A portal customer, so the leak test runs against the portal a customer sees
+// rather than the operator dashboard a staff session is redirected to.
+setup("authenticate portal customer", async ({ request }) => {
+	const res = await request.post(`${BASE_URL}/api/method/login`, {
+		data: { usr: PORTAL_USER, pwd: PORTAL_PWD },
+	});
+	expect(res.status(), `portal login failed for ${PORTAL_USER}`).toBe(200);
+	fs.mkdirSync(path.dirname(PORTAL_STATE), { recursive: true });
+	await request.storageState({ path: PORTAL_STATE });
 });

@@ -12,6 +12,12 @@ export const BASE_URL = process.env.BWM_BASE_URL || "http://localhost:8004";
 export const STAFF_USER = process.env.BWM_USER || "ui-audit@bwm-demo.test";
 export const STAFF_PWD = process.env.BWM_PWD || "bwm-demo-2026";
 export const STORAGE_STATE = "tests/.auth/staff.json";
+// The portal is a different tenant's window on our data, so proving it leaks
+// nothing needs a real customer session — a staff session is redirected away
+// from /portal and would assert against the dashboard instead.
+export const PORTAL_USER = process.env.BWM_PORTAL_USER || "portal-audit@bwm-demo.test";
+export const PORTAL_PWD = process.env.BWM_PORTAL_PWD || "bwm-demo-2026";
+export const PORTAL_STATE = "tests/.auth/customer.json";
 
 export default defineConfig({
 	testDir: "./tests",

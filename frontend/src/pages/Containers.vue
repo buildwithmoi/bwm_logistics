@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Plus, Search } from "lucide-vue-next";
+import { Plus } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import { useSessionStore } from "@/stores/session";
 import { useBranchStore } from "@/stores/branch";
 import Button from "@/components/ui/Button.vue";
-import Input from "@/components/ui/Input.vue";
-import DataTable, { type Column } from "@/components/ui/DataTable.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import ListToolbar from "@/components/ui/ListToolbar.vue";
+import { CONTAINER_LIST, columnsFor } from "@/lib/views";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import Badge from "@/components/ui/Badge.vue";
-import DirectionBadge from "@/components/DirectionBadge.vue";
 
 const router = useRouter();
 const toast = useToast();
@@ -83,19 +83,13 @@ watch(statusFilter, () => load());
 watch(directionFilter, () => load());
 onMounted(load);
 
-const columns: Column[] = [
-	{ key: "container_no", label: "Container", primary: true },
-	// Route earns its place over a Direction badge, which mostly restates the
-	// Imports/Exports tab you already picked.
-	{ key: "route", label: "Route" },
-	// Two trailing cells rather than one: DataTable stacks them on a phone, so
-	// the container number keeps its width instead of truncating behind badges.
-	{ key: "risk", label: "", trailing: true },
-	{ key: "status", label: "Status", trailing: true },
-	{ key: "current_milestone", label: "Milestone" },
-	{ key: "eta", label: "ETA", nowrap: true },
-	{ key: "shipment_count", label: "Shipments", numeric: true },
-];
+// Columns come from lib/views.ts and shrink as filters pin them: pick a status
+// and the Status column goes (every row has it), pick Imports and Route goes
+// (it would only ever read "Import"). `shipment_count` isn't here at all — it
+// read "1" on every row, which makes it a detail-page fact.
+const columns = computed(() =>
+	columnsFor(CONTAINER_LIST, { status: statusFilter.value, direction: directionFilter.value }, rows.value),
+);
 
 // Creating a container is a page (/containers/new), not a dialog — too many
 // fields to cram into a modal, and the URL is worth having.
@@ -112,41 +106,20 @@ const canCreate = computed(() => session.can("containers", "create"));
 			</template>
 		</PageHeader>
 
-		<!-- Direction — the primary lens (Import vs Export) -->
-		<div class="chip-row mb-3" role="group" aria-label="Direction">
-			<button
-				v-for="d in ['', 'Import', 'Export']"
-				:key="d"
-				type="button"
-				class="chip !px-4 !py-2 !text-sm !font-semibold"
-				:class="directionFilter === d ? 'chip-seg-on' : 'chip-off'"
-				:aria-pressed="directionFilter === d"
-				@click="directionFilter = d"
-			>
-				{{ d === "Import" ? "Imports" : d === "Export" ? "Exports" : "All" }}
-			</button>
-		</div>
-
-		<!-- Filters -->
-		<div class="mb-4 space-y-3">
-			<div class="relative sm:max-w-xs">
-				<Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-				<Input v-model="search" type="search" aria-label="Search containers" placeholder="Search container, BL, vessel…" class="pl-9" />
-			</div>
-			<div class="chip-row" role="group" aria-label="Status">
-				<button
-					v-for="s in ['', 'Active', 'Completed', 'Cancelled']"
-					:key="s"
-					type="button"
-					class="chip"
-					:class="statusFilter === s ? 'chip-on' : 'chip-off'"
-					:aria-pressed="statusFilter === s"
-					@click="statusFilter = s"
-				>
-					{{ s || "All" }}
-				</button>
-			</div>
-		</div>
+		<ListToolbar
+			v-model:search="search"
+			v-model:lens="directionFilter"
+			v-model:status="statusFilter"
+			search-label="Search containers"
+			search-placeholder="Search container, BL, vessel…"
+			lens-label="Direction"
+			:lens-options="[
+				{ value: '', label: 'All directions' },
+				{ value: 'Import', label: 'Imports' },
+				{ value: 'Export', label: 'Exports' },
+			]"
+			:statuses="['', 'Active', 'Completed', 'Cancelled']"
+		/>
 
 		<DataTable
 			:columns="columns"
@@ -159,15 +132,13 @@ const canCreate = computed(() => session.can("containers", "create"));
 			@row-click="(r) => router.push(`/containers/${r.name}`)"
 			@load-more="load(true)"
 		>
+			<!-- One identifier: the container number people quote on the phone.
+			     The internal CONT-… name lives on the detail page. -->
 			<template #cell-container_no="{ row }">
-				<div class="min-w-0 font-medium">
-					<div class="truncate">{{ row.container_no || "(not allocated)" }}</div>
-					<div class="text-xs font-normal text-muted-foreground">{{ row.name }}</div>
-				</div>
+				<span class="font-medium">{{ row.container_no || row.name }}</span>
 			</template>
 			<template #cell-route="{ row }">
-				<span v-if="route(row as Row)" class="truncate">{{ route(row as Row) }}</span>
-				<DirectionBadge v-else :direction="String(row.direction)" />
+				<span class="truncate">{{ route(row as Row) || "—" }}</span>
 			</template>
 			<!-- Demurrage is the one thing worth interrupting a scan for.
 			     The empty <span> matters: a scoped slot that renders only a

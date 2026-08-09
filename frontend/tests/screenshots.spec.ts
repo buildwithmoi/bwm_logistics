@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { settle } from "./settle";
 import { measureOverflow } from "./overflow";
 
 // UI-audit sweep: every operator + portal route, at the three widths that
@@ -41,16 +42,6 @@ const ROUTES = [
 	{ slug: "portal-invoices", path: "/logistics/portal/invoices" },
 ];
 
-/** Wait for the SPA to settle: router resolved, loading text gone. */
-async function settle(page: Page) {
-	await page.waitForLoadState("networkidle").catch(() => {});
-	await page
-		.getByText(/^Loading…$/)
-		.first()
-		.waitFor({ state: "detached", timeout: 8000 })
-		.catch(() => {});
-	await page.waitForTimeout(350); // let transitions/charts finish painting
-}
 
 for (const vp of VIEWPORTS) {
 	test.describe(`${vp.name} (${vp.width}px)`, () => {

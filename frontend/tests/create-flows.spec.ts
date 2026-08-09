@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { settle } from "./settle";
 import { useFixtures } from "./fixtures";
 import { measureOverflow } from "./overflow";
 
@@ -16,8 +17,7 @@ const SHOT_DIR = "tests/__shots__";
 async function open(page: Page, path: string) {
 	await useFixtures(page);
 	await page.goto(path);
-	await page.waitForLoadState("networkidle").catch(() => {});
-	await page.waitForTimeout(300);
+	await settle(page);
 }
 
 test.describe("create screens are pages", () => {
@@ -42,7 +42,7 @@ test.describe("create screens are pages", () => {
 
 			// The URL is real: reload lands on the same form.
 			await page.reload();
-			await page.waitForLoadState("networkidle").catch(() => {});
+			await settle(page);
 			await expect(page.getByRole("heading", { name: f.heading, level: 1 })).toBeVisible();
 
 			// And Back returns to the list.

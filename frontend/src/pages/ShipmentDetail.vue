@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { Flag, ReceiptText, Printer } from "lucide-vue-next";
+import { ReceiptText, Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtMoney, fmtWeight, fmtDate } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -16,7 +16,6 @@ import Sheet from "@/components/ui/Sheet.vue";
 import Badge from "@/components/ui/Badge.vue";
 import DetailHeader from "@/components/ui/DetailHeader.vue";
 import DataList from "@/components/ui/DataList.vue";
-import DataRow from "@/components/ui/DataRow.vue";
 import SearchCombo from "@/components/ui/SearchCombo.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
@@ -62,6 +61,29 @@ onMounted(load);
 const canEdit = computed(() => session.can("shipments", "edit"));
 const canBill = computed(() => session.canSee("billing") || session.hasRole("Logistics Manager", "System Manager"));
 const isTrading = computed(() => data.value?.shipment_type === "Own Goods (Trading)");
+
+// Own goods have no customer to consign to, so the receiver fields aren't
+// "empty" — they don't apply. Route still does.
+const routeRows = computed(() => [
+	...(isTrading.value
+		? []
+		: [
+				{ label: "Receiver", value: data.value?.consignee_name as string },
+				{ label: "Phone", value: data.value?.consignee_phone as string },
+			]),
+	{ label: "Origin", value: data.value?.origin as string },
+	{ label: "Destination", value: data.value?.destination as string },
+	{ label: "Delivery address", value: data.value?.delivery_address as string, wide: true },
+]);
+
+// The P&L card is a claim that money has moved. Until an invoice or a purchase
+// exists it reports "+0.00 · 0 invoice(s) · 0 purchase(s)" in a big black box —
+// a prominent statement that nothing has happened. And on customer cargo it is
+// not our margin at all, it's their freight bill.
+const hasPnlActivity = computed(
+	() => !!pnl.value && (pnl.value.sales.length > 0 || pnl.value.purchases.length > 0),
+);
+const showPnl = computed(() => canBill.value && isTrading.value && hasPnlActivity.value);
 
 // ── P&L (Managers/Accounts only — server enforces too) ─────────────────────
 interface Pnl {
@@ -360,8 +382,12 @@ async function makeInvoice() {
 				:title="data.name"
 				back-to="/shipments"
 				back-label="Shipments"
-				:subtitle="`${isTrading ? 'Trading shipment' : data.customer_name || 'No customer'} · ${data.destination || 'destination not set'}`"
+				:subtitle="`${isTrading ? 'Trading shipment' : data.customer_name || 'No customer'}${data.destination ? ' · ' + data.destination : ''}${data.current_milestone ? ' · ' + data.current_milestone : ''}`"
+				status-action-label="Update status"
+				@status-click="canEdit && openStatus()"
 			>
+				<!-- The badge is the control: tapping it opens the status sheet. -->
+				<template v-if="canEdit" #statusAction />
 				<template #badges>
 					<StatusBadge :status="data.status" />
 					<DirectionBadge :direction="data.direction" />
@@ -369,14 +395,6 @@ async function makeInvoice() {
 					<Badge v-if="data.current_milestone === 'Delayed'" tone="danger" dot>Delayed</Badge>
 				</template>
 				<template #actions>
-					<!-- Updating where a shipment has got to is THE everyday job on
-					     this screen, so it is the primary button, named for the
-					     outcome rather than for the record it writes. -->
-					<Button v-if="canEdit" @click="openStatus">
-						<Flag class="h-4 w-4" aria-hidden="true" />
-						<span class="hidden sm:inline">Update status</span>
-						<span class="sm:hidden">Status</span>
-					</Button>
 					<Button
 						v-if="canBill && !data.invoice && (data.charges || []).length"
 						variant="outline"
@@ -393,21 +411,23 @@ async function makeInvoice() {
 				</template>
 			</DetailHeader>
 
-			<!-- Where it is now, and the one tap that moves it on. -->
-			<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100">
-				<div class="min-w-0">
-					<div class="label-caps">Current status</div>
-					<div class="mt-1 flex flex-wrap items-center gap-2">
-						<span class="text-lg font-semibold tracking-tight">{{ data.current_milestone || "No milestones yet" }}</span>
-						<!-- Only when it adds something: "In Transit / In Transit" is noise. -->
-						<StatusBadge v-if="data.status !== data.current_milestone" :status="data.status" />
-					</div>
+			<!-- P&L (Managers/Accounts — server-gated) -->
+			<!-- Nothing has moved yet: offer the two actions on one quiet line
+			     instead of a prominent card reporting +0.00. -->
+			<div
+				v-if="canBill && isTrading && !hasPnlActivity"
+				class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-gray-100"
+			>
+				<p class="text-[13px] text-muted-foreground">No costs or sales recorded against this shipment yet.</p>
+				<div class="flex shrink-0 gap-2">
+					<Button size="sm" variant="outline" @click="router.push(`/billing/purchase/new?shipment=${name}`)">
+						Record cost
+					</Button>
+					<Button size="sm" @click="router.push(`/billing/invoice/new?shipment=${name}`)">Record sale</Button>
 				</div>
-				<Button v-if="canEdit" variant="outline" class="shrink-0" @click="openStatus">Update</Button>
 			</div>
 
-			<!-- P&L (Managers/Accounts — server-gated) -->
-			<div v-if="canBill && pnl" class="mb-4 rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
+			<div v-if="showPnl && pnl" class="mb-4 rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
 				<div class="flex flex-wrap items-center gap-x-8 gap-y-3">
 					<div class="min-w-0">
 						<div class="label-caps !text-brand-400">Profit & loss</div>
@@ -483,14 +503,8 @@ async function makeInvoice() {
 
 					<!-- Parties -->
 					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-						<h2 class="label-caps mb-2 sm:mb-4">Consignee &amp; route</h2>
-						<DataList>
-							<DataRow label="Receiver" :value="data.consignee_name as string" />
-							<DataRow label="Phone" :value="data.consignee_phone as string" />
-							<DataRow label="Origin" :value="data.origin as string" />
-							<DataRow label="Destination" :value="data.destination as string" />
-							<DataRow label="Delivery address" :value="data.delivery_address as string" wide />
-						</DataList>
+						<h2 class="label-caps mb-2 sm:mb-4">{{ isTrading ? "Route" : "Consignee &amp; route" }}</h2>
+						<DataList :items="routeRows" empty-text="No route or consignee recorded yet." />
 					</div>
 
 					<!-- Packages -->

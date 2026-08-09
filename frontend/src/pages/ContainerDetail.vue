@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { Flag, Package, RefreshCw } from "lucide-vue-next";
+import { RefreshCw } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
@@ -13,8 +13,8 @@ import Textarea from "@/components/ui/Textarea.vue";
 import Sheet from "@/components/ui/Sheet.vue";
 import Badge from "@/components/ui/Badge.vue";
 import DetailHeader from "@/components/ui/DetailHeader.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 import DataList from "@/components/ui/DataList.vue";
-import DataRow from "@/components/ui/DataRow.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
 import Timeline, { type TimelineEvent } from "@/components/Timeline.vue";
@@ -115,19 +115,41 @@ async function recordMilestone() {
 	}
 }
 
-const infoRows = computed(() => [
+/** "estimated / actual" — but only the halves that exist, so a container with
+ *  an ETA and no ATA reads "May 31" rather than "May 31 / —". */
+function pair(estimated?: string | null, actual?: string | null): string | null {
+	const parts = [estimated, actual].filter(Boolean).map((d) => fmtDate(d as string));
+	return parts.length ? parts.join(" → ") : null;
+}
+
+// Two sections rather than one twelve-row table: what the voyage is, and what
+// the clock is doing. DataList drops the rows nobody has filled in and
+// collapses a section that is entirely empty.
+const voyageRows = computed(() => [
 	{ label: "Shipping line", value: doc.value.shipping_line },
 	{ label: "Vessel / Voyage", value: [doc.value.vessel, doc.value.voyage_no].filter(Boolean).join(" / ") },
 	{ label: "Master BL", value: doc.value.bl_no },
 	{ label: "Booking No", value: doc.value.booking_no },
+	{ label: "Seal No", value: doc.value.seal_no },
 	{ label: "Loading port", value: doc.value.port_of_loading },
 	{ label: "Discharge port", value: doc.value.port_of_discharge },
-	{ label: "ETD / ATD", value: [fmtDate(doc.value.etd as string), fmtDate(doc.value.atd as string)].join(" / ") },
-	{ label: "ETA / ATA", value: [fmtDate(doc.value.eta as string), fmtDate(doc.value.ata as string)].join(" / ") },
+	{ label: "Departure", value: pair(doc.value.etd as string, doc.value.atd as string) },
+	{ label: "Arrival", value: pair(doc.value.eta as string, doc.value.ata as string) },
+]);
+// The tagged list gets the same card-on-a-phone treatment as every other list
+// rather than a 560px table nobody can read on a handset.
+const shipmentColumns = [
+	{ key: "name", label: "Tracking No", primary: true, nowrap: true },
+	{ key: "status", label: "Status", trailing: true },
+	{ key: "customer_name", label: "Customer" },
+	{ key: "total_packages", label: "Packages", numeric: true },
+	{ key: "total_charges", label: "Charges", numeric: true },
+];
+
+const customsRows = computed(() => [
 	{ label: "Customs", value: doc.value.customs_status },
 	{ label: "Free days", value: doc.value.free_days },
 	{ label: "Demurrage from", value: fmtDate(doc.value.demurrage_start_date as string) },
-	{ label: "Seal No", value: doc.value.seal_no },
 ]);
 </script>
 
@@ -139,19 +161,19 @@ const infoRows = computed(() => [
 				:title="String(doc.container_no || name)"
 				back-to="/containers"
 				back-label="Containers"
-				:subtitle="`${name} · ${doc.container_type || 'type not set'}`"
+				:subtitle="`${name}${doc.container_type ? ' · ' + doc.container_type : ''}${doc.current_milestone ? ' · ' + doc.current_milestone : ''}`"
+				status-action-label="Update status"
+				@status-click="canEdit && (milestoneOpen = true)"
 			>
+				<!-- The badge is the control: tapping it opens the status sheet.
+				     No separate Status button, no Current status card. -->
+				<template v-if="canEdit" #statusAction />
 				<template #badges>
 					<StatusBadge :status="String(doc.status)" />
 					<DirectionBadge :direction="String(doc.direction)" />
 					<Badge v-if="doc.current_milestone === 'Delayed'" tone="danger" dot>Delayed</Badge>
 				</template>
 				<template #actions>
-					<Button v-if="canEdit" @click="milestoneOpen = true">
-						<Flag class="h-4 w-4" aria-hidden="true" />
-						<span class="hidden sm:inline">Update status</span>
-						<span class="sm:hidden">Status</span>
-					</Button>
 					<Button
 						v-if="canEdit && data.tracking_provider && doc.container_no"
 						variant="outline"
@@ -166,26 +188,23 @@ const infoRows = computed(() => [
 				</template>
 			</DetailHeader>
 
-			<!-- Where it is now, and the one tap that moves it on. -->
-			<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-gray-100">
-				<div class="min-w-0">
-					<div class="label-caps">Current status</div>
-					<div class="mt-1 flex flex-wrap items-center gap-2">
-						<span class="text-lg font-semibold tracking-tight">{{ doc.current_milestone || "No milestones yet" }}</span>
-						<!-- Only when it adds something: "Active / Active" is noise. -->
-						<StatusBadge v-if="doc.status !== doc.current_milestone" :status="String(doc.status)" />
-					</div>
-				</div>
-				<Button v-if="canEdit" variant="outline" class="shrink-0" @click="milestoneOpen = true">Update</Button>
-			</div>
-
 			<div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
 				<!-- Info card -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-5">
-					<h2 class="label-caps mb-2 sm:mb-4">Voyage details</h2>
-					<DataList>
-						<DataRow v-for="r in infoRows" :key="r.label" :label="r.label" :value="r.value" />
-					</DataList>
+				<div class="space-y-4 lg:col-span-5">
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+						<h2 class="label-caps mb-2 sm:mb-4">Voyage</h2>
+						<DataList :items="voyageRows" empty-text="No voyage details recorded yet.">
+							<template #empty-action>
+								<Button v-if="canEdit" size="sm" variant="outline" @click="milestoneOpen = true">
+									Add details
+								</Button>
+							</template>
+						</DataList>
+					</div>
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+						<h2 class="label-caps mb-2 sm:mb-4">Customs &amp; demurrage</h2>
+						<DataList :items="customsRows" :columns="1" empty-text="Nothing cleared or clocked yet." />
+					</div>
 				</div>
 
 				<!-- Timeline -->
@@ -203,42 +222,23 @@ const infoRows = computed(() => [
 						New shipment →
 					</RouterLink>
 				</div>
-				<div v-if="!data.shipments.length" class="rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">
-					No shipments tagged yet. Tag customers' shipments to this container so they
-					get notified on every milestone.
-				</div>
-				<div v-else class="overflow-x-auto">
-					<table class="w-full min-w-[560px] text-sm">
-						<thead>
-							<tr class="text-left">
-								<th class="label-caps pb-2 pr-4">Tracking No</th>
-								<th class="label-caps pb-2 pr-4">Customer</th>
-								<th class="label-caps pb-2 pr-4">Status</th>
-								<th class="label-caps pb-2 pr-4 text-right">Packages</th>
-								<th class="label-caps pb-2 text-right">Charges</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr
-								v-for="s in data.shipments"
-								:key="String(s.name)"
-								class="cursor-pointer border-t border-gray-100 transition-colors hover:bg-gray-50/80"
-								@click="router.push(`/shipments/${s.name}`)"
-							>
-								<td class="py-2.5 pr-4 font-medium text-brand-700">
-									<span class="inline-flex items-center gap-1.5"><Package class="h-3.5 w-3.5" /> {{ s.name }}</span>
-								</td>
-								<td class="py-2.5 pr-4">
-									<span v-if="!s.customer" class="inline-flex items-center rounded-full bg-brand-600/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">Own goods</span>
-									<template v-else>{{ s.customer_name || s.customer }}</template>
-								</td>
-								<td class="py-2.5 pr-4"><StatusBadge :status="String(s.status)" /></td>
-								<td class="py-2.5 pr-4 text-right tabular-nums">{{ s.total_packages || 0 }}</td>
-								<td class="py-2.5 text-right tabular-nums">{{ fmtMoney(s.total_charges as number) }}</td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
+				<DataTable
+					:columns="shipmentColumns"
+					:rows="data.shipments"
+					clickable
+					empty-text="No shipments tagged yet — tag one so its customer gets every milestone."
+					@row-click="(r) => router.push(`/shipments/${r.name}`)"
+				>
+					<template #cell-name="{ row }">
+						<span class="font-medium text-brand-700">{{ row.name }}</span>
+					</template>
+					<template #cell-customer_name="{ row }">
+						<Badge v-if="!row.customer" tone="brand">Own goods</Badge>
+						<template v-else>{{ row.customer_name || row.customer }}</template>
+					</template>
+					<template #cell-status="{ value }"><StatusBadge :status="String(value)" /></template>
+					<template #cell-total_charges="{ value }">{{ fmtMoney(value as number) }}</template>
+				</DataTable>
 			</div>
 
 			<!-- ── Record milestone dialog ───────────────────────────────────── -->

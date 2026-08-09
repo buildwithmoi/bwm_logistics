@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { settle } from "./settle";
 import { useFixtures } from "./fixtures";
 import { measureOverflow } from "./overflow";
 
@@ -25,15 +26,6 @@ const ROUTES = [
 	{ slug: "dispatch", path: "/logistics/dispatch" },
 ];
 
-async function settle(page: Page) {
-	await page.waitForLoadState("networkidle").catch(() => {});
-	await page
-		.getByText(/^Loading…$/)
-		.first()
-		.waitFor({ state: "detached", timeout: 8000 })
-		.catch(() => {});
-	await page.waitForTimeout(350);
-}
 
 for (const vp of VIEWPORTS) {
 	test.describe(`populated ${vp.name} (${vp.width}px)`, () => {
