@@ -11,6 +11,8 @@ import Select from "@/components/ui/Select.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import Dialog from "@/components/ui/Dialog.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import Badge from "@/components/ui/Badge.vue";
+import DirectionBadge from "@/components/DirectionBadge.vue";
 
 // Settings (P7): left-rail section list (same pattern as Reports) — pick a
 // section on the left, its panel renders on the right. One Save covers the
@@ -25,13 +27,79 @@ const SECTIONS = [
 	{ key: "tracking", label: "Tracking" },
 	{ key: "notifications", label: "Notifications" },
 	{ key: "branches", label: "Branches" },
+	{ key: "milestones", label: "Statuses" },
 	{ key: "staff", label: "Staff & Roles", managed: true },
 ] as const;
 type SectionKey = (typeof SECTIONS)[number]["key"];
 const section = ref<SectionKey>("branding");
 const sections = computed(() => SECTIONS.filter((s) => !("managed" in s && s.managed) || canEdit));
 // Save applies to the Logistics Settings-backed panels only.
-const showSave = computed(() => !["branches", "staff"].includes(section.value));
+const showSave = computed(() => !["branches", "staff", "milestones"].includes(section.value));
+
+// ── milestone templates ─────────────────────────────────────────────────────
+// The statuses this company works to. One ordered list per direction; each row
+// says whether reaching it tells the customer. Containers pick a template, so
+// editing here changes what the status sheet offers.
+interface MilestoneRow {
+	milestone: string;
+	notify_customer: number;
+	description?: string | null;
+}
+interface TemplateRow {
+	name: string;
+	template_name: string;
+	direction: string;
+	is_default: number;
+	milestones: MilestoneRow[];
+	in_use: number;
+}
+const templates = ref<TemplateRow[]>([]);
+const tplOpen = ref(false);
+const tplSaving = ref(false);
+const tplForm = reactive<{ name?: string; template_name: string; direction: string; is_default: number; milestones: MilestoneRow[] }>(
+	{ template_name: "", direction: "Import", is_default: 0, milestones: [] },
+);
+
+async function loadTemplates() {
+	try {
+		templates.value = await call<TemplateRow[]>("bwm_logistics.api.settings.list_milestone_templates");
+	} catch {
+		/* section degrades */
+	}
+}
+function openTemplate(t?: TemplateRow) {
+	Object.assign(tplForm, {
+		name: t?.name,
+		template_name: t?.template_name || "",
+		direction: t?.direction || "Import",
+		is_default: t?.is_default || 0,
+		milestones: t ? t.milestones.map((m) => ({ ...m })) : [{ milestone: "", notify_customer: 1 }],
+	});
+	tplOpen.value = true;
+}
+function moveMilestone(i: number, by: number) {
+	const j = i + by;
+	if (j < 0 || j >= tplForm.milestones.length) return;
+	const [row] = tplForm.milestones.splice(i, 1);
+	tplForm.milestones.splice(j, 0, row);
+}
+async function saveTemplate() {
+	if (!tplForm.template_name.trim()) {
+		toast.warning("Name the template");
+		return;
+	}
+	tplSaving.value = true;
+	try {
+		await call("bwm_logistics.api.settings.save_milestone_template", { payload: { ...tplForm } });
+		toast.success("Statuses saved");
+		tplOpen.value = false;
+		await loadTemplates();
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not save");
+	} finally {
+		tplSaving.value = false;
+	}
+}
 
 interface SettingsData extends Record<string, unknown> {
 	business_name?: string;
@@ -71,6 +139,7 @@ onMounted(async () => {
 	loadStaff();
 	loadRoles();
 	loadBranches();
+	loadTemplates();
 });
 
 // ── branches ────────────────────────────────────────────────────────────────
@@ -454,6 +523,57 @@ async function copyWebhook() {
 					</div>
 				</section>
 
+				<!-- Statuses: the milestones this company works to. Already a
+				     doctype driving container tracking; it was simply never
+				     editable outside the Desk. -->
+				<section v-else-if="section === 'milestones'" class="space-y-4">
+					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+						<div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+							<div class="min-w-0">
+								<h2 class="label-caps">Statuses</h2>
+								<p class="mt-1 text-pretty text-xs text-muted-foreground">
+									The milestones a container moves through, per direction. Reaching one can
+									notify the customers with goods in that box.
+								</p>
+							</div>
+							<Button v-if="canEdit" size="sm" @click="openTemplate()">
+								<Plus class="h-4 w-4" aria-hidden="true" /> New set
+							</Button>
+						</div>
+
+						<div v-if="!templates.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
+							No status sets yet.
+						</div>
+						<div v-else class="space-y-3">
+							<button
+								v-for="t in templates"
+								:key="t.name"
+								type="button"
+								class="block w-full rounded-xl border border-gray-200 p-3.5 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:p-4"
+								@click="canEdit && openTemplate(t)"
+							>
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="font-medium">{{ t.template_name }}</span>
+									<DirectionBadge :direction="t.direction" />
+									<Badge v-if="t.is_default" tone="brand">Default</Badge>
+									<span v-if="t.in_use" class="text-xs text-muted-foreground">
+										· on {{ t.in_use }} container(s)
+									</span>
+								</div>
+								<div class="mt-2 flex flex-wrap gap-1.5">
+									<Badge
+										v-for="m in t.milestones"
+										:key="m.milestone"
+										:tone="m.notify_customer ? 'info' : 'neutral'"
+									>
+										{{ m.milestone }}
+									</Badge>
+								</div>
+							</button>
+						</div>
+					</div>
+				</section>
+
 				<!-- Staff & Roles -->
 				<section v-else-if="section === 'staff' && canEdit" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<div class="mb-4 flex flex-wrap items-center gap-2">
@@ -597,6 +717,91 @@ async function copyWebhook() {
 				<div class="flex justify-end gap-2">
 					<Button variant="outline" @click="roleOpen = false">Cancel</Button>
 					<Button :loading="roleSaving" @click="saveRole">Save role</Button>
+				</div>
+			</template>
+		</Dialog>
+	<Dialog v-model:open="tplOpen" :title="tplForm.name ? 'Edit statuses' : 'New status set'" size="wide">
+			<div class="space-y-4">
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+					<div class="space-y-1.5 sm:col-span-2">
+						<Label for="tpl-name" required>Name</Label>
+						<Input id="tpl-name" v-model="tplForm.template_name" placeholder="e.g. Standard Import" />
+					</div>
+					<div class="space-y-1.5">
+						<Label for="tpl-dir">Direction</Label>
+						<Select id="tpl-dir" v-model="tplForm.direction" :options="['Import', 'Export']" />
+					</div>
+				</div>
+				<label class="flex cursor-pointer items-center gap-2.5 text-sm">
+					<input
+						type="checkbox"
+						class="h-4 w-4 rounded accent-[#b8860b]"
+						:checked="!!tplForm.is_default"
+						@change="tplForm.is_default = tplForm.is_default ? 0 : 1"
+					/>
+					Use for new {{ tplForm.direction.toLowerCase() }} containers
+				</label>
+
+				<div>
+					<div class="mb-2 flex items-center justify-between">
+						<Label required>Milestones, in order</Label>
+						<button
+							type="button"
+							class="text-xs font-medium text-brand-700 hover:underline"
+							@click="tplForm.milestones.push({ milestone: '', notify_customer: 1 })"
+						>
+							+ Add milestone
+						</button>
+					</div>
+					<div class="space-y-2">
+						<div
+							v-for="(m, i) in tplForm.milestones"
+							:key="i"
+							class="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2.5 sm:flex-nowrap sm:border-0 sm:p-0"
+						>
+							<div class="flex shrink-0 gap-1">
+								<button
+									type="button"
+									class="flex h-9 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+									:disabled="i === 0"
+									:aria-label="`Move ${m.milestone || 'row'} up`"
+									@click="moveMilestone(i, -1)"
+								>↑</button>
+								<button
+									type="button"
+									class="flex h-9 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+									:disabled="i === tplForm.milestones.length - 1"
+									:aria-label="`Move ${m.milestone || 'row'} down`"
+									@click="moveMilestone(i, 1)"
+								>↓</button>
+							</div>
+							<Input v-model="m.milestone" placeholder="e.g. Arrived at Port" class="min-w-0 flex-1" />
+							<label class="flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
+								<input
+									type="checkbox"
+									class="h-4 w-4 rounded accent-[#b8860b]"
+									:checked="!!m.notify_customer"
+									@change="m.notify_customer = m.notify_customer ? 0 : 1"
+								/>
+								Notify
+							</label>
+							<button
+								type="button"
+								class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+								:disabled="tplForm.milestones.length === 1"
+								:aria-label="`Remove ${m.milestone || 'row'}`"
+								@click="tplForm.milestones.splice(i, 1)"
+							>
+								<Trash2 class="h-4 w-4" aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<template #footer>
+				<div class="flex justify-end gap-2">
+					<Button variant="outline" @click="tplOpen = false">Cancel</Button>
+					<Button :loading="tplSaving" @click="saveTemplate">Save statuses</Button>
 				</div>
 			</template>
 		</Dialog>

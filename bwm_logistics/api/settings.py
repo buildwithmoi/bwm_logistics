@@ -85,3 +85,59 @@ def save_settings(payload):
 
 	clear_website_cache()
 	return {"ok": True}
+
+
+# ── Milestone templates (the statuses a company works to) ────────────────────
+# These already existed as a doctype driving container milestones; they were
+# just never editable outside the Desk. This is the "let the company define
+# their own statuses" surface — one list per direction, ordered, each row
+# saying whether reaching it notifies the customer.
+
+
+@frappe.whitelist()
+def list_milestone_templates():
+	require(*ANY_STAFF)
+	rows = []
+	for t in frappe.get_all(
+		"Milestone Template", fields=["name", "template_name", "direction", "is_default"], order_by="direction, name"
+	):
+		doc = frappe.get_cached_doc("Milestone Template", t.name)
+		rows.append(
+			{
+				**t,
+				"milestones": [
+					{"milestone": m.milestone, "notify_customer": m.notify_customer, "description": m.description}
+					for m in doc.milestones
+				],
+				"in_use": frappe.db.count("Container", {"milestone_template": t.name}),
+			}
+		)
+	return rows
+
+
+@frappe.whitelist()
+def save_milestone_template(payload):
+	require(ROLE_MANAGER, ROLE_SYS)
+	data = frappe.parse_json(payload) if isinstance(payload, str) else payload
+	name = data.get("name")
+	doc = frappe.get_doc("Milestone Template", name) if name else frappe.new_doc("Milestone Template")
+	doc.template_name = (data.get("template_name") or "").strip() or doc.template_name
+	doc.direction = data.get("direction") or doc.direction
+	doc.is_default = cint(data.get("is_default"))
+
+	milestones = [m for m in (data.get("milestones") or []) if (m.get("milestone") or "").strip()]
+	if not milestones:
+		frappe.throw(_("A template needs at least one milestone."))
+	doc.set("milestones", [])
+	for m in milestones:
+		doc.append(
+			"milestones",
+			{
+				"milestone": m["milestone"].strip(),
+				"notify_customer": cint(m.get("notify_customer")),
+				"description": m.get("description"),
+			},
+		)
+	doc.save()
+	frappe.clear_cache(doctype="Milestone Template")
+	return {"name": doc.name}

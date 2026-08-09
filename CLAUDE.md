@@ -235,6 +235,30 @@ fails the suite rather than quietly lengthening a page.
   tabs — no raised action and no "More". Pages are lazy-loaded and route names
   double as access keys.
 
+## The domain model (read this before touching Shipment or Container)
+
+- **Container = the box, and its manifest.** `Container.contents` says what is
+  inside and **whose it is**: an untagged line is the company's own goods, a
+  tagged one names the customer whose cargo is riding in a consolidated box.
+  This is what lets a milestone notification say "your 200 cartons" instead of
+  a container number the customer cannot identify.
+- **Shipment = the commercial booking.** Supplier, charges, invoice, and the
+  `containers` table of every box it rides in. A purchase split across two
+  40-footers is one booking. `Shipment.container` (single link) survives as
+  "the primary box" because tracking events, the portal and older queries read
+  it; `Shipment.sync_containers()` keeps it equal to the first row.
+- **`Shipment.packages` is dead but not deleted.** The field and its rows remain
+  so the `move_packages_to_containers` migration is reversible. Nothing reads
+  it — don't add a caller.
+- **Contents point at ERPNext `Item`** (group `Logistics Goods`), classified by
+  the `bwm_trade_direction` custom field so an export box is never offered
+  import-only goods. Managed at `/items`; the picker can create one inline.
+- **Statuses are Milestone Templates**, editable in Settings → Statuses. There
+  is no separate Status doctype and there should not be — containers already
+  link a template, and each milestone row carries its own `notify_customer`.
+- **Consignee applies to customer cargo only.** On own goods the receiver is the
+  company, so the fields don't render.
+
 ## Watch out for
 
 - **`ex_beauty` may be copied from; `cargo_management` (AgileShift) must NOT be** — it's

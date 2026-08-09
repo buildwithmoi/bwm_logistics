@@ -62,6 +62,28 @@ const canEdit = computed(() => session.can("shipments", "edit"));
 const canBill = computed(() => session.canSee("billing") || session.hasRole("Logistics Manager", "System Manager"));
 const isTrading = computed(() => data.value?.shipment_type === "Own Goods (Trading)");
 
+// ── sections ────────────────────────────────────────────────────────────────
+// The rail. Goods only exists for own-goods bookings — there is no stock to
+// distribute on somebody else's cargo.
+interface BoxRow extends Record<string, unknown> {
+	container: string;
+	container_no?: string;
+	status?: string;
+	eta?: string;
+}
+const boxes = computed<BoxRow[]>(() => (data.value?.containers as BoxRow[]) || []);
+
+const sections = computed(() =>
+	[
+		{ key: "timeline", label: "Timeline" },
+		{ key: "containers", label: `Containers${boxes.value.length ? ` (${boxes.value.length})` : ""}` },
+		{ key: "route", label: isTrading.value ? "Route" : "Consignee" },
+		{ key: "billing", label: "Charges" },
+		...(isTrading.value ? [{ key: "goods", label: "Goods" }] : []),
+	].filter(Boolean),
+);
+const section = ref<string>("timeline");
+
 // Own goods have no customer to consign to, so the receiver fields aren't
 // "empty" — they don't apply. Route still does.
 const routeRows = computed(() => [
@@ -484,167 +506,187 @@ async function makeInvoice() {
 				</div>
 			</div>
 
-			<div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
-				<div class="space-y-4 lg:col-span-5">
-					<!-- Container card -->
-					<div v-if="data.container_info" class="rounded-2xl bg-coal-900 p-4 sm:p-6 text-white">
-						<div class="label-caps !text-brand-400">In container</div>
+			<!-- One section at a time. A shipment carries route, boxes, money,
+			     goods and history; showing all five at once made a page nobody
+			     could scan, and on a phone it was a very long scroll. The rail
+			     is the same control the Reports and Settings screens use. -->
+			<div class="flex flex-col gap-4 lg:flex-row lg:gap-6">
+				<nav
+					class="chip-row shrink-0 lg:mx-0 lg:w-48 lg:flex-col lg:overflow-visible lg:px-0"
+					aria-label="Shipment section"
+				>
+					<button
+						v-for="s in sections"
+						:key="s.key"
+						type="button"
+						class="shrink-0 touch-manipulation rounded-lg px-3.5 py-2 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+						:class="section === s.key ? 'bg-brand-50 text-brand-800' : 'text-gray-600 hover:bg-gray-50'"
+						:aria-current="section === s.key ? 'page' : undefined"
+						@click="section = s.key"
+					>
+						{{ s.label }}
+					</button>
+				</nav>
+
+				<div class="min-w-0 flex-1 space-y-4">
+					<!-- Containers: a booking can ride in several boxes -->
+					<template v-if="section === 'containers'">
+						<div v-if="!boxes.length" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+							<p class="text-sm text-muted-foreground">
+								Loose cargo — this booking isn't in a container yet.
+							</p>
+						</div>
 						<RouterLink
-							:to="`/containers/${data.container_info.name}`"
-							class="mt-1 block text-lg font-semibold hover:text-brand-300"
+							v-for="b in boxes"
+							:key="b.container"
+							:to="`/containers/${b.container}`"
+							class="block rounded-2xl bg-coal-900 p-4 text-white transition-colors hover:bg-coal-800 sm:p-6"
 						>
-							{{ data.container_info.container_no || data.container_info.name }}
-						</RouterLink>
-						<div class="mt-1 text-sm text-white/60">
-							{{ data.container_info.vessel || "vessel TBD" }} ·
-							ETA {{ fmtDate(data.container_info.eta) }}
-						</div>
-					</div>
-
-					<!-- Parties -->
-					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-						<h2 class="label-caps mb-2 sm:mb-4">{{ isTrading ? "Route" : "Consignee &amp; route" }}</h2>
-						<DataList :items="routeRows" empty-text="No route or consignee recorded yet." />
-					</div>
-
-					<!-- Packages -->
-					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-						<h2 class="label-caps mb-4">Packages ({{ data.total_packages || 0 }})</h2>
-						<ul class="divide-y divide-gray-100 text-sm">
-							<li v-for="(p, i) in data.packages" :key="i" class="flex items-baseline justify-between gap-3 py-2">
-								<span class="min-w-0 flex-1">{{ p.description }} <span class="text-muted-foreground">× {{ p.qty }} {{ String(p.unit || "PIECES").toLowerCase() }}</span></span>
-								<span class="shrink-0 tabular-nums text-muted-foreground">{{ fmtWeight(p.weight_kg as number) }}</span>
-							</li>
-						</ul>
-						<div class="mt-3 flex justify-between border-t border-gray-100 pt-3 text-sm">
-							<span class="text-muted-foreground">Total weight</span>
-							<span class="font-medium tabular-nums">{{ fmtWeight(data.total_weight_kg as number) }}</span>
-						</div>
-					</div>
-
-					<!-- Billing -->
-					<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-						<div class="mb-4 flex items-center justify-between">
-							<h2 class="label-caps">Charges & billing</h2>
-							<button
-								v-if="canEdit && !data.invoice"
-								type="button"
-								class="text-xs font-medium text-brand-700 hover:underline"
-								@click="openRate"
-							>
-								Apply rate card
-							</button>
-						</div>
-						<ul v-if="(data.charges || []).length" class="divide-y divide-gray-100 text-sm">
-							<li v-for="(c, i) in data.charges" :key="i" class="flex justify-between py-2">
-								<span>{{ c.charge_type }}</span>
-								<span class="tabular-nums">{{ fmtMoney(c.amount as number) }}</span>
-							</li>
-							<li class="flex justify-between py-2 font-semibold">
-								<span>Total</span>
-								<span class="tabular-nums">{{ fmtMoney(data.total_charges as number) }}</span>
-							</li>
-						</ul>
-						<p v-else class="text-sm text-muted-foreground">No charges added.</p>
-						<div v-if="data.invoice" class="mt-3 flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 text-sm">
-							<div>
-								<div class="font-medium">{{ data.invoice.name }}</div>
-								<div class="text-xs text-muted-foreground">
-									Outstanding {{ fmtMoney(data.invoice.outstanding_amount, data.invoice.currency) }}
-								</div>
+							<div class="label-caps !text-brand-400">In container</div>
+							<div class="mt-1 text-lg font-semibold">{{ b.container_no || b.container }}</div>
+							<div class="mt-1 text-sm text-white/60">
+								{{ b.status || "—" }}<template v-if="b.eta"> · ETA {{ fmtDate(b.eta as string) }}</template>
 							</div>
-							<StatusBadge :status="data.invoice.status" />
-						</div>
-					</div>
-				</div>
+						</RouterLink>
+					</template>
 
-				<!-- Timeline -->
-				<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-7">
-					<h2 class="label-caps mb-4">Tracking timeline</h2>
-					<Timeline :events="data.timeline" />
-				</div>
+					<template v-else-if="section === 'route'">
+<!-- Parties -->
+		<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+			<h2 class="label-caps mb-2 sm:mb-4">{{ isTrading ? "Route" : "Consignee &amp; route" }}</h2>
+			<DataList :items="routeRows" empty-text="No route or consignee recorded yet." />
+		</div>
+					</template>
+
+					<template v-else-if="section === 'billing'">
+<!-- Billing -->
+		<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+			<div class="mb-4 flex items-center justify-between">
+				<h2 class="label-caps">Charges & billing</h2>
+				<button
+					v-if="canEdit && !data.invoice"
+					type="button"
+					class="text-xs font-medium text-brand-700 hover:underline"
+					@click="openRate"
+				>
+					Apply rate card
+				</button>
 			</div>
-
-			<!-- ── Stock & distribution (trading shipments) ─────────────────── -->
-			<div v-if="isTrading && balances" class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
-				<div class="mb-4 flex flex-wrap items-center gap-2">
-					<h2 class="label-caps min-w-0 flex-1">Stock & distribution</h2>
-					<span class="text-sm tabular-nums text-muted-foreground">
-						{{ fmtQty(balances.distributed_total) }} of {{ fmtQty(balances.received_total) }} distributed ·
-						<b class="text-gray-900">{{ fmtQty(balances.remaining_total) }} left</b>
-					</span>
-					<Button v-if="canDistribute" size="sm" @click="openDist">Record distribution</Button>
-				</div>
-
-				<!-- Per-product balance bars -->
-				<div class="mb-5 space-y-2.5">
-					<div v-for="l in balances.lines" :key="l.product" class="flex items-center gap-3">
-						<div class="w-52 min-w-0 shrink-0 sm:w-72">
-							<div class="truncate text-sm font-medium">{{ l.product }}</div>
-							<div class="text-xs text-muted-foreground">{{ fmtQty(l.received) }} {{ l.unit.toLowerCase() }} received</div>
-						</div>
-						<div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-							<div
-								class="h-full rounded-full bg-brand-500"
-								:style="{ width: `${Math.min(100, (l.distributed / Math.max(l.received, 1)) * 100)}%` }"
-							></div>
-						</div>
-						<span class="w-28 shrink-0 text-right text-sm font-semibold tabular-nums" :class="l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'">
-							{{ fmtQty(l.remaining) }} left
-						</span>
+			<ul v-if="(data.charges || []).length" class="divide-y divide-gray-100 text-sm">
+				<li v-for="(c, i) in data.charges" :key="i" class="flex justify-between py-2">
+					<span>{{ c.charge_type }}</span>
+					<span class="tabular-nums">{{ fmtMoney(c.amount as number) }}</span>
+				</li>
+				<li class="flex justify-between py-2 font-semibold">
+					<span>Total</span>
+					<span class="tabular-nums">{{ fmtMoney(data.total_charges as number) }}</span>
+				</li>
+			</ul>
+			<p v-else class="text-sm text-muted-foreground">No charges added.</p>
+			<div v-if="data.invoice" class="mt-3 flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 text-sm">
+				<div>
+					<div class="font-medium">{{ data.invoice.name }}</div>
+					<div class="text-xs text-muted-foreground">
+						Outstanding {{ fmtMoney(data.invoice.outstanding_amount, data.invoice.currency) }}
 					</div>
 				</div>
+				<StatusBadge :status="data.invoice.status" />
+			</div>
+		</div>
+					</template>
 
-				<!-- Entries -->
-				<div v-if="!distributions.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
-					Nothing distributed yet — record where the goods go (a truck, a buyer, or storage).
+					<template v-else-if="section === 'goods'">
+<!-- ── Stock & distribution (trading shipments) ─────────────────── -->
+	<div v-if="isTrading && balances" class="mt-4 rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
+		<div class="mb-4 flex flex-wrap items-center gap-2">
+			<h2 class="label-caps min-w-0 flex-1">Stock & distribution</h2>
+			<span class="text-sm tabular-nums text-muted-foreground">
+				{{ fmtQty(balances.distributed_total) }} of {{ fmtQty(balances.received_total) }} distributed ·
+				<b class="text-gray-900">{{ fmtQty(balances.remaining_total) }} left</b>
+			</span>
+			<Button v-if="canDistribute" size="sm" @click="openDist">Record distribution</Button>
+		</div>
+
+		<!-- Per-product balance bars -->
+		<div class="mb-5 space-y-2.5">
+			<div v-for="l in balances.lines" :key="l.product" class="flex items-center gap-3">
+				<div class="w-52 min-w-0 shrink-0 sm:w-72">
+					<div class="truncate text-sm font-medium">{{ l.product }}</div>
+					<div class="text-xs text-muted-foreground">{{ fmtQty(l.received) }} {{ l.unit.toLowerCase() }} received</div>
 				</div>
-				<div v-else class="overflow-x-auto">
-					<table class="w-full min-w-[680px] text-sm">
-						<thead>
-							<tr class="text-left">
-								<th class="label-caps pb-2 pr-4">Date</th>
-								<th class="label-caps pb-2 pr-4">Product</th>
-								<th class="label-caps pb-2 pr-4 text-right">Qty</th>
-								<th class="label-caps pb-2 pr-4">Recipient</th>
-								<th class="label-caps pb-2 pr-4">Destination</th>
-								<th class="label-caps pb-2 pr-4 text-right">Amount</th>
-								<th class="label-caps pb-2 text-right">Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="d in distributions" :key="d.name" class="border-t border-gray-100">
-								<td class="py-2.5 pr-4 tabular-nums text-muted-foreground">{{ fmtDate(d.delivery_date) }}</td>
-								<td class="py-2.5 pr-4">{{ d.product }}</td>
-								<td class="py-2.5 pr-4 text-right tabular-nums">{{ fmtQty(d.qty) }} {{ (d.unit || "").toLowerCase() }}</td>
-								<td class="py-2.5 pr-4 font-medium">{{ d.recipient }}</td>
-								<td class="py-2.5 pr-4 text-muted-foreground">{{ d.destination || "—" }}</td>
-								<td class="py-2.5 pr-4 text-right tabular-nums">{{ d.amount ? fmtMoney(d.amount) : "—" }}</td>
-								<td class="py-2.5 text-right">
-									<span class="inline-flex items-center gap-2">
-										<RouterLink
-											v-if="d.sales_invoice"
-											:to="`/billing?tab=sales`"
-											class="text-xs font-medium text-emerald-700 hover:underline"
-										>{{ d.sales_invoice }}</RouterLink>
-										<Button
-											v-else-if="canBill && d.customer && (d.unit_price || 0) > 0"
-											size="sm"
-											variant="outline"
-											:loading="invoicingDist === d.name"
-											@click="invoiceDistribution(d)"
-										>Invoice</Button>
-										<button
-											v-if="canDistribute && !d.sales_invoice"
-											type="button"
-											class="text-xs font-medium text-gray-400 hover:text-red-600"
-											@click="deleteDistribution(d)"
-										>Remove</button>
-									</span>
-								</td>
-							</tr>
-						</tbody>
-					</table>
+				<div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+					<div
+						class="h-full rounded-full bg-brand-500"
+						:style="{ width: `${Math.min(100, (l.distributed / Math.max(l.received, 1)) * 100)}%` }"
+					></div>
+				</div>
+				<span class="w-28 shrink-0 text-right text-sm font-semibold tabular-nums" :class="l.remaining > 0 ? 'text-brand-800' : 'text-gray-400'">
+					{{ fmtQty(l.remaining) }} left
+				</span>
+			</div>
+		</div>
+
+		<!-- Entries -->
+		<div v-if="!distributions.length" class="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-muted-foreground">
+			Nothing distributed yet — record where the goods go (a truck, a buyer, or storage).
+		</div>
+		<div v-else class="overflow-x-auto">
+			<table class="w-full min-w-[680px] text-sm">
+				<thead>
+					<tr class="text-left">
+						<th class="label-caps pb-2 pr-4">Date</th>
+						<th class="label-caps pb-2 pr-4">Product</th>
+						<th class="label-caps pb-2 pr-4 text-right">Qty</th>
+						<th class="label-caps pb-2 pr-4">Recipient</th>
+						<th class="label-caps pb-2 pr-4">Destination</th>
+						<th class="label-caps pb-2 pr-4 text-right">Amount</th>
+						<th class="label-caps pb-2 text-right">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="d in distributions" :key="d.name" class="border-t border-gray-100">
+						<td class="py-2.5 pr-4 tabular-nums text-muted-foreground">{{ fmtDate(d.delivery_date) }}</td>
+						<td class="py-2.5 pr-4">{{ d.product }}</td>
+						<td class="py-2.5 pr-4 text-right tabular-nums">{{ fmtQty(d.qty) }} {{ (d.unit || "").toLowerCase() }}</td>
+						<td class="py-2.5 pr-4 font-medium">{{ d.recipient }}</td>
+						<td class="py-2.5 pr-4 text-muted-foreground">{{ d.destination || "—" }}</td>
+						<td class="py-2.5 pr-4 text-right tabular-nums">{{ d.amount ? fmtMoney(d.amount) : "—" }}</td>
+						<td class="py-2.5 text-right">
+							<span class="inline-flex items-center gap-2">
+								<RouterLink
+									v-if="d.sales_invoice"
+									:to="`/billing?tab=sales`"
+									class="text-xs font-medium text-emerald-700 hover:underline"
+								>{{ d.sales_invoice }}</RouterLink>
+								<Button
+									v-else-if="canBill && d.customer && (d.unit_price || 0) > 0"
+									size="sm"
+									variant="outline"
+									:loading="invoicingDist === d.name"
+									@click="invoiceDistribution(d)"
+								>Invoice</Button>
+								<button
+									v-if="canDistribute && !d.sales_invoice"
+									type="button"
+									class="text-xs font-medium text-gray-400 hover:text-red-600"
+									@click="deleteDistribution(d)"
+								>Remove</button>
+							</span>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+					</template>
+
+					<template v-else>
+<!-- Timeline -->
+	<div class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6 lg:col-span-7">
+		<h2 class="label-caps mb-4">Tracking timeline</h2>
+		<Timeline :events="data.timeline" />
+	</div>
+					</template>
 				</div>
 			</div>
 
