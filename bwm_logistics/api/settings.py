@@ -22,15 +22,93 @@ SECRET_FIELDS = ["tracking_api_key", "whatsapp_api_token"]
 CHECK_FIELDS = {"email_enabled", "sms_enabled", "whatsapp_enabled"}
 
 
+FALLBACK_NAME = "Logistics"
+
+
+def business_name() -> str:
+	"""What this installation calls itself — the one answer, used everywhere.
+
+	Logistics Settings first, because that is what an operator can edit. A site
+	that has never been branded falls back to the ERPNext Company (there is only
+	ever one on these installs), so a fresh deploy shows the client's own name
+	instead of ours.
+	"""
+	name = (frappe.db.get_single_value("Logistics Settings", "business_name") or "").strip()
+	if name:
+		return name
+	if frappe.db.exists("DocType", "Company"):
+		company = (frappe.db.get_value("Company", {}, "company_name") or "").strip()
+		if company:
+			return company
+	return FALLBACK_NAME
+
+
+def monogram(name: str | None = None) -> str:
+	"""The single letter that stands in for a logo nobody has uploaded."""
+	return ((name or business_name()).strip()[:1] or "?").upper()
+
+
 @frappe.whitelist(allow_guest=True)
 def get_branding():
 	"""Business name + logo for the app shells (guests see the login page,
 	so this is deliberately public — it exposes nothing sensitive)."""
-	settings = frappe.get_cached_doc("Logistics Settings")
+	name = business_name()
 	return {
-		"business_name": settings.business_name or "BWM Logistics",
-		"logo": settings.logo,
+		"business_name": name,
+		"logo": frappe.db.get_single_value("Logistics Settings", "logo"),
+		"monogram": monogram(name),
 	}
+
+
+@frappe.whitelist()
+def upload_logo(filename=None, content=None):
+	"""Store a logo sent as a base64 data URL and point Settings at it.
+
+	The operator app has no Desk attach control, so the file arrives inline from
+	the Settings page. Kept behind the same roles that can edit settings.
+	"""
+	require(ROLE_MANAGER, ROLE_SYS)
+	if not content:
+		frappe.throw(_("No image was sent."))
+
+	import base64
+
+	header, _sep, payload = str(content).partition(",")
+	if "base64" not in header:
+		frappe.throw(_("Send the image as a base64 data URL."))
+	try:
+		data = base64.b64decode(payload)
+	except Exception:
+		frappe.throw(_("That image could not be read."))
+	if len(data) > 2 * 1024 * 1024:
+		frappe.throw(_("Logo must be under 2MB."))
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": (filename or "logo.png").rsplit("/", 1)[-1][:140],
+			"is_private": 0,
+			"content": data,
+			"decode": False,
+			"attached_to_doctype": "Logistics Settings",
+			"attached_to_name": "Logistics Settings",
+			"attached_to_field": "logo",
+		}
+	)
+	doc.flags.ignore_permissions = True
+	doc.insert(ignore_permissions=True)
+	frappe.db.set_single_value("Logistics Settings", "logo", doc.file_url)
+	frappe.clear_cache(doctype="Logistics Settings")
+	return {"logo": doc.file_url}
+
+
+@frappe.whitelist()
+def clear_logo():
+	"""Drop back to the monogram."""
+	require(ROLE_MANAGER, ROLE_SYS)
+	frappe.db.set_single_value("Logistics Settings", "logo", None)
+	frappe.clear_cache(doctype="Logistics Settings")
+	return {"logo": None}
 
 
 @frappe.whitelist()

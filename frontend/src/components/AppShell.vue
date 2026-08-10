@@ -21,10 +21,11 @@ import {
 	PackageSearch,
 } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
-import BrandLogo from "@/components/BrandLogo.vue";
+import BrandMark from "@/components/BrandMark.vue";
 import PortalBell from "@/components/PortalBell.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import { useBranchStore } from "@/stores/branch";
+import { useBrandStore } from "@/stores/brand";
 import { call } from "@/lib/frappe";
 import { logout as apiLogout } from "@/lib/auth";
 
@@ -123,24 +124,17 @@ function onEscape(e: KeyboardEvent) {
 // overflow "More" — the menu button in the top bar already covers the rest.
 const bottomNav = computed(() => primary.value.slice(0, 4));
 
-// Business name + logo come from Logistics Settings (tenant branding).
-const businessName = ref("BWM Logistics");
-const logo = ref<string | null>(null);
+// Business name + mark come from Logistics Settings (tenant branding), via the
+// shared store so the login screen and the shell agree.
+const brand = useBrandStore();
+const businessName = computed(() => brand.name);
 
 const branchStore = useBranchStore();
 
 onMounted(async () => {
 	session.loadAccess();
 	if (session.isStaff) branchStore.load();
-	try {
-		const b = await call<{ business_name: string; logo?: string }>(
-			"bwm_logistics.api.settings.get_branding",
-		);
-		if (b?.business_name) businessName.value = b.business_name;
-		logo.value = b?.logo || null;
-	} catch {
-		/* branding falls back to default */
-	}
+	brand.load();
 });
 </script>
 
@@ -190,13 +184,7 @@ onMounted(async () => {
 					<span class="hidden text-sm font-semibold tracking-tight text-white/90 lg:inline">
 						{{ businessName }}
 					</span>
-					<span
-						class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg shadow-sm shadow-black/20"
-						:class="logo ? 'bg-white' : 'bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900'"
-					>
-						<img v-if="logo" :src="logo" alt="" width="36" height="36" class="h-full w-full object-contain" />
-						<BrandLogo v-else :size="22" />
-					</span>
+					<BrandMark :size="36" class="shadow-sm shadow-black/20" />
 				</RouterLink>
 			</div>
 		</header>

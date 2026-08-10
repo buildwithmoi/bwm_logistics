@@ -19,6 +19,7 @@ from bwm_logistics.api._perm import (
 	ROLE_SYS,
 	require,
 )
+from bwm_logistics.api.settings import business_name
 
 CAN_BILL = (ROLE_MANAGER, ROLE_ACCOUNTS, ROLE_SYS)
 CAN_RATE = (ROLE_MANAGER, ROLE_ACCOUNTS, ROLE_SYS)
@@ -302,7 +303,7 @@ def build_statement(customer: str, from_date: str, to_date: str) -> dict:
 	return {
 		"customer": customer,
 		"customer_name": frappe.db.get_value("Customer", customer, "customer_name"),
-		"business_name": settings.business_name or "BWM Logistics",
+		"business_name": business_name(),
 		"from_date": from_date,
 		"to_date": to_date,
 		"opening_balance": round(opening, 2),
@@ -358,7 +359,7 @@ def get_receipt(payment_entry):
 		**pe,
 		"invoices": invoices,
 		"in_words": money_in_words(pe.paid_amount, pe.paid_to_account_currency),
-		"business_name": settings.business_name or "BWM Logistics",
+		"business_name": business_name(),
 		"contact_phone": settings.contact_phone,
 		"contact_email": settings.contact_email,
 	}

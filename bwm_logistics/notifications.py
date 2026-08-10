@@ -11,6 +11,8 @@ Notification Log Entry so operators can see who was told what, when.
 """
 
 import frappe
+
+from bwm_logistics.api.settings import business_name
 from frappe.utils import get_url
 
 DEFAULT_SUBJECT = "Update on your shipment {tracking_no}: {milestone}"
@@ -91,7 +93,7 @@ def _notify_shipment(event, shipment, settings):
 
 
 def _context(event, shipment, settings) -> dict:
-	business = settings.business_name or frappe.db.get_default("company") or "BWM Logistics"
+	business = business_name()
 	return {
 		"customer_name": shipment.customer_name or shipment.customer,
 		"tracking_no": shipment.name,

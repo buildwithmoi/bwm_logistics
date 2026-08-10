@@ -268,6 +268,17 @@ fails the suite rather than quietly lengthening a page.
   not, so "Destination —" is pure noise. Pass a predicate when blank means
   something other than `isBlank`: an uninvoiced entry's amount is `0`, not
   empty.
+- **The app never names itself.** `api/settings.business_name()` is the single
+  answer — Logistics Settings, else the ERPNext Company on the site (there is
+  only ever one), else `"Logistics"`. It feeds the shell, login, printed labels
+  and reports, notifications, invoices, the website, the `<title>`, and the PWA
+  manifest (served through `pwa.py` precisely so the installed app carries the
+  tenant's name, not the build's). On the frontend it arrives once via
+  `stores/brand.ts` and renders through **`components/BrandMark.vue`**: the
+  uploaded logo, or the first letter of the business name on a tinted tile.
+  Settings → Branding uploads and clears the logo. Don't spell a company name
+  into a component again — six places had, and a client site called itself by
+  ours.
 - Shell: `AppShell.vue` is a single h-14 coal-900 top bar — **menu button left**
   (opens the one nav drawer, at every breakpoint), everyday tabs centre on
   desktop, **logo hard right**. No avatar menu, no Apps launcher, no "Switch to

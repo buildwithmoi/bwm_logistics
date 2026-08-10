@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-	<title>{{ _("BWM Logistics") }}</title>
+	<title>{{ business_name }}</title>
 	{# PWA (P8): manifest + SW are served at /logistics/* by bwm_logistics/pwa.py #}
 	<link rel="manifest" href="/logistics/manifest.webmanifest" />
 	<meta name="theme-color" content="#0f0f10" />
@@ -12,7 +12,7 @@
 	<meta name="mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black" />
-	<meta name="apple-mobile-web-app-title" content="BWM Logistics" />
+	<meta name="apple-mobile-web-app-title" content="{{ business_name }}" />
 	{%- if entry_css %}
 	<link rel="stylesheet" href="{{ entry_css }}" />
 	{%- endif %}
@@ -47,7 +47,7 @@
 	{%- else %}
 	<div class="bwm-bootstrap-fallback">
 		<div>
-			<h2>BWM Logistics</h2>
+			<h2>{{ business_name }}</h2>
 			<p>The frontend bundle hasn't been built yet.</p>
 			<pre style="background:#f5f2e8;padding:0.75rem;border-radius:6px;">cd apps/bwm_logistics/frontend &amp;&amp; yarn install &amp;&amp; yarn build</pre>
 		</div>

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { Download, Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
+import { useBrandStore } from "@/stores/brand";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { useToast } from "@/composables/useToast";
 import BarChart, { type BarGroup } from "@/components/BarChart.vue";
@@ -16,6 +17,8 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 // branch/direction filters, receivables aging and per-shipment profitability
 // (the server omits the profitability section for non-billing roles).
 const toast = useToast();
+const brand = useBrandStore();
+brand.load();
 
 interface Reports {
 	window: { from: string; to: string };
@@ -301,7 +304,7 @@ function exportCsv() {
 				<template v-else-if="data">
 					<!-- Print-only header (hidden on screen) -->
 					<div class="report-print-header hidden">
-						<h1 class="text-xl font-bold">BWM Logistics — {{ activeLabel }}</h1>
+						<h1 class="text-xl font-bold">{{ brand.name }} — {{ activeLabel }}</h1>
 						<p class="text-sm text-gray-600">
 							{{ fmtDate(data.window.from) }} – {{ fmtDate(data.window.to) }}
 							<span v-if="branch"> · {{ branch }}</span>

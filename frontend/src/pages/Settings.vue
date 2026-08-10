@@ -13,12 +13,16 @@ import Dialog from "@/components/ui/Dialog.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import Badge from "@/components/ui/Badge.vue";
 import DirectionBadge from "@/components/DirectionBadge.vue";
+import BrandMark from "@/components/BrandMark.vue";
+import { useBrandStore } from "@/stores/brand";
 
 // Settings (P7): left-rail section list (same pattern as Reports) — pick a
 // section on the left, its panel renders on the right. One Save covers the
 // form-backed sections; Branches and Staff & Roles save through their own APIs.
 const toast = useToast();
 const session = useSessionStore();
+const brand = useBrandStore();
+brand.load();
 const canEdit = session.hasRole("Logistics Manager", "System Manager", "Administrator");
 
 const SECTIONS = [
@@ -307,11 +311,57 @@ function togglePage(key: string) {
 	roleForm.pages.has(key) ? roleForm.pages.delete(key) : roleForm.pages.add(key);
 }
 
+// ── logo ────────────────────────────────────────────────────────────────────
+const logoInput = ref<HTMLInputElement | null>(null);
+const logoBusy = ref(false);
+
+async function uploadLogo(event: Event) {
+	const file = (event.target as HTMLInputElement).files?.[0];
+	if (!file) return;
+	if (file.size > 2 * 1024 * 1024) {
+		toast.warning("Logo must be under 2MB");
+		return;
+	}
+	logoBusy.value = true;
+	try {
+		// Read it here and post it inline: the operator app has no Desk attach
+		// control, and this keeps the upload behind our own permission check.
+		const content = await new Promise<string>((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(String(reader.result));
+			reader.onerror = () => reject(reader.error);
+			reader.readAsDataURL(file);
+		});
+		await call("bwm_logistics.api.settings.upload_logo", { filename: file.name, content });
+		await brand.load(true);
+		toast.success("Logo updated");
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not upload the logo");
+	} finally {
+		logoBusy.value = false;
+		if (logoInput.value) logoInput.value.value = "";
+	}
+}
+
+async function removeLogo() {
+	logoBusy.value = true;
+	try {
+		await call("bwm_logistics.api.settings.clear_logo");
+		await brand.load(true);
+		toast.info("Logo removed — the app shows the initial instead");
+	} catch (e: unknown) {
+		toast.error((e as { message?: string })?.message || "Could not remove the logo");
+	} finally {
+		logoBusy.value = false;
+	}
+}
+
 async function save() {
 	saving.value = true;
 	try {
 		await call("bwm_logistics.api.settings.save_settings", { payload: { ...form } });
 		toast.success("Settings saved");
+		await brand.load(true);
 		form.tracking_api_key = "";
 		form.whatsapp_api_token = "";
 	} catch (e: unknown) {
@@ -364,11 +414,45 @@ async function copyWebhook() {
 				<!-- Branding -->
 				<section v-if="section === 'branding'" class="rounded-2xl bg-white p-4 ring-1 ring-gray-100 sm:p-6">
 					<h2 class="label-caps mb-4">Branding</h2>
+
+					<!-- The mark, and what stands in for it. -->
+					<div class="mb-5 flex items-center gap-4">
+						<BrandMark :size="64" class="rounded-xl ring-1 ring-gray-200" />
+						<div class="min-w-0 flex-1">
+							<p class="text-sm font-medium">Logo</p>
+							<p class="text-xs text-muted-foreground">
+								{{
+									brand.logo
+										? "Shown in the app, on the login screen and on printed pages."
+										: `No logo yet — the app shows “${brand.monogram}”, the first letter of the business name.`
+								}}
+							</p>
+							<div v-if="canEdit" class="mt-2 flex flex-wrap items-center gap-2">
+								<Button size="sm" variant="outline" :loading="logoBusy" @click="logoInput?.click()">
+									{{ brand.logo ? "Replace" : "Upload logo" }}
+								</Button>
+								<Button v-if="brand.logo" size="sm" variant="outline" :loading="logoBusy" @click="removeLogo">
+									Remove
+								</Button>
+								<input
+									ref="logoInput"
+									type="file"
+									accept="image/png,image/jpeg,image/svg+xml,image/webp"
+									class="hidden"
+									@change="uploadLogo"
+								/>
+							</div>
+						</div>
+					</div>
+
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="space-y-1.5">
 							<Label>Business name</Label>
-							<Input v-model="form.business_name" :disabled="!canEdit" placeholder="BWM Logistics" />
-							<p class="text-xs text-muted-foreground">Appears on the website, notifications, and printed invoices.</p>
+							<Input v-model="form.business_name" :disabled="!canEdit" :placeholder="brand.name" />
+							<p class="text-xs text-muted-foreground">
+								Used everywhere the app names itself — the shell, the login screen, the website,
+								notifications and printed invoices. Left empty it falls back to the company on this site.
+							</p>
 						</div>
 						<div class="space-y-1.5">
 							<Label>Tracking number prefix</Label>

@@ -11,6 +11,8 @@ import frappe
 from frappe.sessions import get as get_bootinfo
 from frappe.sessions import get_csrf_token
 
+from bwm_logistics.api.settings import business_name
+
 # The SPA mounts at /logistics. `no_cache = 1` so each page load re-emits a
 # fresh CSRF token (set in get_context) — otherwise stale tokens float around
 # after logout/login.
@@ -41,6 +43,8 @@ def get_context(context):
 	context.is_guest = frappe.session.user == "Guest"
 
 	context.entry_js, context.entry_css = _resolve_assets("dist/main")
+	# The tab title and the installed-app name are the tenant's, not ours.
+	context.business_name = business_name()
 
 
 def _resolve_assets(subdir):

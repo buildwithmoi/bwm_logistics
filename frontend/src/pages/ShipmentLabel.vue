@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Printer } from "lucide-vue-next";
 import qrcode from "qrcode-generator";
 import { call } from "@/lib/frappe";
+import { useBrandStore } from "@/stores/brand";
 import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
 import DetailHeader from "@/components/ui/DetailHeader.vue";
@@ -12,6 +13,8 @@ import DetailHeader from "@/components/ui/DetailHeader.vue";
 // the tracking number. Browser print → thermal/A4; @media print CSS strips
 // the app chrome so only labels render.
 const route = useRoute();
+const brand = useBrandStore();
+brand.load();
 const router = useRouter();
 const toast = useToast();
 
@@ -83,7 +86,7 @@ onMounted(async () => {
 			>
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
-						<div class="text-[10px] font-bold uppercase tracking-[0.18em]">BWM Logistics</div>
+						<div class="text-[10px] font-bold uppercase tracking-[0.18em]">{{ brand.name }}</div>
 						<div class="mt-1 text-xl font-extrabold tracking-tight">{{ data.name }}</div>
 						<div class="mt-1 truncate text-sm font-medium">{{ data.consignee_name || data.customer_name }}</div>
 						<div class="truncate text-xs text-gray-600">{{ data.destination }}</div>

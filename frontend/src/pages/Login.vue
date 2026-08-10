@@ -18,9 +18,12 @@ import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
-import BrandLogo from "@/components/BrandLogo.vue";
+import BrandMark from "@/components/BrandMark.vue";
+import { useBrandStore } from "@/stores/brand";
 
 const toast = useToast();
+const brand = useBrandStore();
+brand.load();
 
 // Frappe's /api/method/login accepts either email or username in `usr`,
 // so the field is plain text and the placeholder is intentionally generic.
@@ -123,13 +126,9 @@ async function submit() {
 
 			<!-- Brand mark -->
 			<div class="relative z-10 flex items-center gap-3">
-				<div
-					class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900 ring-1 ring-white/20"
-				>
-					<BrandLogo :size="28" />
-				</div>
+				<BrandMark :size="48" class="rounded-2xl ring-1 ring-white/20" />
 				<div>
-					<div class="text-lg font-bold tracking-tight">BWM Logistics</div>
+					<div class="text-lg font-bold tracking-tight">{{ brand.name }}</div>
 					<div class="text-xs text-white/60">Port to doorstep, tracked.</div>
 				</div>
 			</div>
@@ -162,12 +161,8 @@ async function submit() {
 		<section class="relative z-10 flex w-full flex-col items-center justify-center px-6 py-12 lg:w-[40%] xl:w-[38%]">
 			<!-- Mobile brand mark -->
 			<div class="mb-8 flex flex-col items-center lg:hidden">
-				<div
-					class="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-coal-900 shadow-lg shadow-brand-200"
-				>
-					<BrandLogo :size="34" />
-				</div>
-				<div class="text-lg font-bold">BWM Logistics</div>
+				<BrandMark :size="56" class="mb-3 rounded-2xl shadow-lg shadow-brand-200" />
+				<div class="text-lg font-bold">{{ brand.name }}</div>
 			</div>
 
 			<div class="w-full max-w-sm bwm-form-enter">
