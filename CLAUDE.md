@@ -342,6 +342,19 @@ fails the suite rather than quietly lengthening a page.
 - **Statuses are Milestone Templates**, editable in Settings → Statuses. There
   is no separate Status doctype and there should not be — containers already
   link a template, and each milestone row carries its own `notify_customer`.
+- **A milestone is dated, not stamped "now".** The paperwork lands after the
+  event, so both status sheets carry a `When` date. Arrivals default to the
+  day the box landed (`Container.ata`, i.e. the shipment's `date_received`),
+  everything else to today — and `record_milestone`/`record_event` apply the
+  same rule server-side, so a Desk or API call gets it right without the UI.
+  Entering a date received also lays the arrival on the timeline itself
+  (`Container.sync_arrival_event`, `source = "System"`, never notifying), and
+  moves it if the date is corrected; an operator recording that same arrival
+  supersedes the placeholder (`TrackingEvent.supersede_auto_event`) so the
+  timeline shows it once. Note both `sync_arrival_event` and
+  `apply_voyage_to_containers` refresh `self.modified` afterwards — deriving
+  status writes to the row mid-save, and without it the next save of that same
+  in-memory document is refused as an edit conflict.
 - **Tracking Event is append-only for Operations, correctable by a manager.**
   System Manager and Logistics Manager hold `write` + `delete`; Operations and
   Accounts hold read only. Note the Desk hides Delete when *no* role has the

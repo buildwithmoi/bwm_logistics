@@ -4,6 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import getdate
 
 
 class TrackingEvent(Document):
@@ -25,6 +26,7 @@ class TrackingEvent(Document):
 				frappe.throw(_("Shipment {0} is not tagged to container {1}.").format(self.shipment, self.container))
 
 	def after_insert(self):
+		self.supersede_auto_event()
 		self.sync_parents()
 		if self.notify:
 			# Queued so slow SMTP/SMS gateways never block the operator's save.
@@ -34,6 +36,31 @@ class TrackingEvent(Document):
 				event_name=self.name,
 				enqueue_after_commit=True,
 			)
+
+	def supersede_auto_event(self):
+		"""An operator recording what the system already laid down replaces it.
+
+		Entering a date received puts the arrival on the timeline by itself
+		(Container.sync_arrival_event). If the operator then records that same
+		arrival — to add a location, or to notify the customer — the timeline
+		would carry it twice. Theirs wins; the placeholder goes.
+		"""
+		if self.source == "System" or not self.container:
+			return
+		for name in frappe.get_all(
+			"Tracking Event",
+			filters={
+				"container": self.container,
+				"milestone": self.milestone,
+				"source": "System",
+				"name": ("!=", self.name),
+			},
+			pluck="name",
+		):
+			if getdate(frappe.db.get_value("Tracking Event", name, "event_datetime")) == getdate(
+				self.event_datetime
+			):
+				frappe.delete_doc("Tracking Event", name, ignore_permissions=True, delete_permanently=True)
 
 	def sync_parents(self):
 		"""Keep current_milestone/status on the linked docs in step."""

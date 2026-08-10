@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { ReceiptText, Printer } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
@@ -148,7 +148,25 @@ async function loadPnl() {
 // resulting status, and picking one is the whole interaction.
 const eventOpen = ref(false);
 const saving = ref(false);
-const form = reactive({ milestone: "", location: "", remarks: "", notify: true });
+const form = reactive({ milestone: "", event_date: "", location: "", remarks: "", notify: true });
+
+// A milestone happened on a day, and that day is usually not today — the
+// paperwork lands later. Arrivals default to the date received rather than to
+// "now", which is what made a booking say it arrived on the day it was typed.
+const ARRIVAL = ["Arrived at Port", "Arrived at Destination", "Offloaded"];
+const today = () => new Date().toISOString().slice(0, 10);
+const arrivalDate = computed(() => (data.value?.date_received as string) || "");
+function defaultDateFor(milestone: string) {
+	return ARRIVAL.includes(milestone) && arrivalDate.value ? arrivalDate.value : today();
+}
+// Picking a milestone re-suggests its date, unless the operator typed one.
+const dateTouched = ref(false);
+watch(
+	() => form.milestone,
+	(m) => {
+		if (!dateTouched.value) form.event_date = defaultDateFor(m);
+	},
+);
 
 interface MilestoneOption {
 	milestone: string;
@@ -160,6 +178,8 @@ const milestoneOptions = computed<MilestoneOption[]>(
 
 function openStatus() {
 	form.milestone = "";
+	dateTouched.value = false;
+	form.event_date = today();
 	form.location = "";
 	form.remarks = "";
 	form.notify = !isTrading.value; // no customer to notify on own goods
@@ -176,6 +196,7 @@ async function recordEvent() {
 		await call("bwm_logistics.api.shipments.record_event", {
 			shipment: name.value,
 			milestone: form.milestone,
+			event_datetime: form.event_date || null,
 			location: form.location || null,
 			remarks: form.remarks || null,
 			notify: form.notify ? 1 : 0,
@@ -543,6 +564,14 @@ async function makeInvoice() {
 							</label>
 						</div>
 					</fieldset>
+
+					<div class="space-y-1.5">
+						<Label for="ev-date">When</Label>
+						<Input id="ev-date" v-model="form.event_date" type="date" @input="dateTouched = true" />
+						<p v-if="form.event_date && form.event_date !== today()" class="text-xs text-muted-foreground">
+							Recorded against {{ fmtDate(form.event_date) }}, not today.
+						</p>
+					</div>
 
 					<div class="space-y-1.5">
 						<Label for="ev-location">Location <span class="font-normal text-muted-foreground">(optional)</span></Label>

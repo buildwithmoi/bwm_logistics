@@ -262,9 +262,16 @@ class Shipment(Document):
 			for field, value in changed.items():
 				box.set(field, value)
 			# A real save, not db.set_value: set_demurrage_start() has to see the
-			# new ATA and move the free-days clock with it.
+			# new ATA and move the free-days clock with it, and the box has to
+			# put its arrival on the timeline.
 			box.flags.ignore_permissions = True
 			box.save(ignore_permissions=True)
+
+		# Laying down that arrival event re-derives status on this very
+		# shipment, which writes to its row while this save is still running.
+		# Take the new timestamp, or the next save of this document is refused
+		# as an edit conflict.
+		self.modified = frappe.db.get_value("Shipment", self.name, "modified")
 
 	def sync_containers(self):
 		"""Keep the single `container` link in step with the `containers` table.

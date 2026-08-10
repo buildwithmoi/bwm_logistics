@@ -6,13 +6,19 @@ import re
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days
+from frappe.utils import add_days, get_datetime, getdate
 
 # ISO 6346: 3 owner letters + category letter (U/J/Z) + 6 digits + check digit.
 CONTAINER_NO_PATTERN = re.compile(r"^[A-Z]{3}[UJZ]\d{7}$")
 
 # Recording one of these milestones flips the container to Completed.
 TERMINAL_MILESTONES = {"Delivered"}
+
+# Milestones that mean "the box has landed". The date received is the same fact
+# as the ATA, so whichever of these the company works to, its event belongs on
+# that date and not on the day somebody got round to typing it.
+ARRIVAL_MILESTONES = ("Arrived at Port", "Arrived at Destination", "Offloaded")
+DEFAULT_ARRIVAL = "Arrived at Port"
 
 
 class Container(Document):
@@ -24,7 +30,74 @@ class Container(Document):
 		self.check_distributed_contents()
 
 	def on_update(self):
+		self.sync_arrival_event()
 		self.refresh_shipment_totals()
+
+	def arrival_milestone(self) -> str:
+		"""What this container's template calls arriving.
+
+		Statuses are configurable, so read the template rather than assuming —
+		and fall back to the standard name when it defines none of them.
+		"""
+		for row in self.milestone_options():
+			if row["milestone"] in ARRIVAL_MILESTONES:
+				return row["milestone"]
+		return DEFAULT_ARRIVAL
+
+	def sync_arrival_event(self):
+		"""Put the day the box landed on the timeline, on that day.
+
+		Entering a date received used to change the ATA and nothing else: the
+		timeline stayed empty, and recording the arrival afterwards stamped it
+		with today instead — so the record said it arrived on the day somebody
+		typed it in. The arrival event now follows the ATA, and follows it again
+		when the date is corrected.
+
+		It does not notify: this is a side effect of saving a form, and a
+		customer should hear about an arrival because an operator recorded it,
+		not because a date was tidied up.
+		"""
+		if not self.ata:
+			return
+		before = self.get_doc_before_save()
+		if before and before.ata == self.ata:
+			return  # the arrival date didn't move — leave the timeline alone
+
+		stamp = get_datetime(f"{getdate(self.ata)} 00:00:00")
+		existing = frappe.get_all(
+			"Tracking Event",
+			filters={"container": self.name, "milestone": ("in", ARRIVAL_MILESTONES)},
+			fields=["name", "event_datetime"],
+			order_by="event_datetime asc",
+			limit=1,
+		)
+		if existing:
+			if getdate(existing[0].event_datetime) == getdate(self.ata):
+				return
+			frappe.db.set_value("Tracking Event", existing[0].name, "event_datetime", stamp)
+		else:
+			frappe.get_doc(
+				{
+					"doctype": "Tracking Event",
+					"container": self.name,
+					"milestone": self.arrival_milestone(),
+					"event_datetime": stamp,
+					"source": "System",
+					"notify": 0,
+				}
+			).insert(ignore_permissions=True)
+
+		# Moving or adding an event can change which one is latest.
+		from bwm_logistics.bwm_logistics.doctype.tracking_event.tracking_event import resync_from_events
+
+		resync_from_events("Container", self.name)
+		for name in self.shipments():
+			resync_from_events("Shipment", name)
+
+		# Re-deriving the status wrote to this very row mid-save, so the
+		# in-memory document now holds a stale `modified` and the next save of
+		# it would be refused as an edit conflict. Take the new timestamp.
+		self.modified = frappe.db.get_value("Container", self.name, "modified")
 
 	def compute_contents(self):
 		self.total_qty = sum((c.qty or 0) for c in self.contents)

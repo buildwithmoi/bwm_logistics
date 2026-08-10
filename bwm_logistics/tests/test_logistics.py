@@ -952,6 +952,76 @@ class TestVoyageOnTheBooking(IntegrationTestCase):
 		self.assertEqual(row.vessel, "MV Testudo")
 		self.assertEqual(str(row.ata), "2026-09-01")
 
+	def _arrivals(self, container):
+		return frappe.get_all(
+			"Tracking Event",
+			filters={"container": container, "milestone": ("in", ["Arrived at Port", "Arrived at Destination", "Offloaded"])},
+			fields=["milestone", "event_datetime", "source"],
+			order_by="event_datetime",
+		)
+
+	def test_date_received_puts_the_arrival_on_the_timeline_on_that_day(self):
+		"""Entering a date received used to move the ATA and nothing else — the
+		timeline stayed empty, and recording the arrival afterwards stamped it
+		with today, so the record claimed it landed the day it was typed."""
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+
+		events = self._arrivals(boxes[0].name)
+		self.assertEqual(len(events), 1, "the arrival never reached the timeline")
+		self.assertEqual(str(frappe.utils.getdate(events[0].event_datetime)), "2026-09-12")
+		self.assertNotEqual(str(frappe.utils.getdate(events[0].event_datetime)), frappe.utils.nowdate())
+		# Auto-laid, so it must not fire a customer notification on a form save.
+		self.assertEqual(events[0].source, "System")
+
+		self.assertEqual(frappe.db.get_value("Container", boxes[0].name, "current_milestone"), "Arrived at Port")
+		self.assertEqual(frappe.db.get_value("Shipment", ship.name, "status"), "Arrived")
+
+	def test_correcting_the_date_moves_the_arrival_with_it(self):
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+		ship.date_received = "2026-09-20"
+		ship.save(ignore_permissions=True)
+
+		events = self._arrivals(boxes[0].name)
+		self.assertEqual(len(events), 1, "correcting the date should move the event, not add one")
+		self.assertEqual(str(frappe.utils.getdate(events[0].event_datetime)), "2026-09-20")
+
+	def test_recording_the_arrival_replaces_the_auto_one(self):
+		"""The operator's own entry supersedes the placeholder rather than
+		sitting beside it — one arrival, once, on the day it happened."""
+		from bwm_logistics.api.containers import record_milestone
+
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+		record_milestone(boxes[0].name, "Arrived at Port", location="Tema Port", notify=0)
+
+		events = self._arrivals(boxes[0].name)
+		self.assertEqual(len(events), 1, "the timeline carries the arrival twice")
+		self.assertEqual(events[0].source, "Manual")
+		self.assertEqual(str(frappe.utils.getdate(events[0].event_datetime)), "2026-09-12")
+
+	def test_recording_an_arrival_without_a_date_uses_the_landing_date(self):
+		"""Even called straight from the API with no date — the box already
+		knows when it landed, and today is only right if it landed today."""
+		from bwm_logistics.api.containers import record_milestone
+
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+		frappe.db.delete("Tracking Event", {"container": boxes[0].name})
+		record_milestone(boxes[0].name, "Arrived at Port", notify=0)
+
+		events = self._arrivals(boxes[0].name)
+		self.assertEqual(str(frappe.utils.getdate(events[0].event_datetime)), "2026-09-12")
+
+	def test_an_unrelated_save_leaves_the_timeline_alone(self):
+		ship, boxes = self._booking(boxes=1, date_received="2026-09-12")
+		before = self._arrivals(boxes[0].name)[0]
+
+		box = frappe.get_doc("Container", boxes[0].name)
+		box.notes = "touched for something else"
+		box.save(ignore_permissions=True)
+
+		after = self._arrivals(boxes[0].name)
+		self.assertEqual(len(after), 1)
+		self.assertEqual(after[0].event_datetime, before.event_datetime)
+
 	def test_a_consolidated_box_can_still_state_its_own_voyage(self):
 		"""Two bookings can share a box, so the fields stay on the container —
 		this is why the voyage was written down rather than moved."""

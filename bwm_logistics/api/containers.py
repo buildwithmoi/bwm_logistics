@@ -165,6 +165,23 @@ def save_container(payload):
 	return {"name": doc.name}
 
 
+def _arrival_default(container: str, milestone: str):
+	"""When an arrival is recorded without a date, use the day the box landed.
+
+	A milestone dated "now" is only right when it is being recorded as it
+	happens; arrivals are typed up afterwards, and the box already knows its
+	ATA (the date received on its shipment). Defaulting to today is what made
+	a container claim it arrived on the day somebody got to the paperwork.
+	"""
+	from bwm_logistics.bwm_logistics.doctype.container.container import ARRIVAL_MILESTONES
+
+	if milestone in ARRIVAL_MILESTONES:
+		ata = frappe.db.get_value("Container", container, "ata")
+		if ata:
+			return frappe.utils.get_datetime(f"{frappe.utils.getdate(ata)} 00:00:00")
+	return frappe.utils.now_datetime()
+
+
 @frappe.whitelist()
 def record_milestone(container, milestone, location=None, remarks=None, event_datetime=None, notify=1):
 	"""Record a container-wide milestone → cascades to tagged shipments and
@@ -179,7 +196,7 @@ def record_milestone(container, milestone, location=None, remarks=None, event_da
 			"milestone": milestone,
 			"location": location,
 			"remarks": remarks,
-			"event_datetime": event_datetime or frappe.utils.now_datetime(),
+			"event_datetime": event_datetime or _arrival_default(container, milestone),
 			"notify": cint(notify),
 			"source": "Manual",
 		}

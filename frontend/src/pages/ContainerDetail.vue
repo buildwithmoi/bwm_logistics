@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { RefreshCw } from "lucide-vue-next";
 import { call } from "@/lib/frappe";
@@ -87,7 +87,24 @@ async function syncTracking() {
 // ── record milestone ────────────────────────────────────────────────────────
 const milestoneOpen = ref(false);
 const saving = ref(false);
-const form = reactive({ milestone: "", location: "", remarks: "", notify: true });
+const form = reactive({ milestone: "", event_date: "", location: "", remarks: "", notify: true });
+
+// The paperwork lands after the event, so a milestone is dated, not stamped
+// "now". Arrivals default to the box's own ATA — the date received entered on
+// its shipment — instead of today.
+const ARRIVAL = ["Arrived at Port", "Arrived at Destination", "Offloaded"];
+const today = () => new Date().toISOString().slice(0, 10);
+function defaultDateFor(milestone: string) {
+	const ata = (doc.value?.ata as string) || "";
+	return ARRIVAL.includes(milestone) && ata ? ata : today();
+}
+const dateTouched = ref(false);
+watch(
+	() => form.milestone,
+	(m) => {
+		if (!dateTouched.value) form.event_date = defaultDateFor(m);
+	},
+);
 
 const milestoneOptions = computed(() => {
 	const opts = (data.value?.milestone_options || []).map((m) => m.milestone);
@@ -105,6 +122,7 @@ async function recordMilestone() {
 		await call("bwm_logistics.api.containers.record_milestone", {
 			container: name.value,
 			milestone: form.milestone,
+			event_datetime: form.event_date || null,
 			location: form.location || null,
 			remarks: form.remarks || null,
 			notify: form.notify ? 1 : 0,
@@ -338,6 +356,11 @@ const customsRows = computed(() => [
 						<p class="text-xs text-muted-foreground">
 							No milestone template on this container — type the milestone instead.
 						</p>
+					</div>
+
+					<div class="space-y-1.5">
+						<Label for="ms-date">When</Label>
+						<Input id="ms-date" v-model="form.event_date" type="date" @input="dateTouched = true" />
 					</div>
 
 					<div class="space-y-1.5">

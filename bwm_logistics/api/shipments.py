@@ -157,6 +157,18 @@ def save_shipment(payload):
 	return {"name": doc.name}
 
 
+def _arrival_default(shipment: str, milestone: str):
+	"""Same rule as on the container: an arrival happened when the box landed,
+	which is the date received on the booking."""
+	from bwm_logistics.bwm_logistics.doctype.container.container import ARRIVAL_MILESTONES
+
+	if milestone in ARRIVAL_MILESTONES:
+		landed = frappe.db.get_value("Shipment", shipment, "date_received")
+		if landed:
+			return frappe.utils.get_datetime(f"{frappe.utils.getdate(landed)} 00:00:00")
+	return frappe.utils.now_datetime()
+
+
 @frappe.whitelist()
 def record_event(shipment, milestone, location=None, remarks=None, event_datetime=None, notify=1):
 	"""Record a shipment-specific milestone (pre/post-container legs, e.g.
@@ -171,7 +183,7 @@ def record_event(shipment, milestone, location=None, remarks=None, event_datetim
 			"milestone": milestone,
 			"location": location,
 			"remarks": remarks,
-			"event_datetime": event_datetime or frappe.utils.now_datetime(),
+			"event_datetime": event_datetime or _arrival_default(shipment, milestone),
 			"notify": cint(notify),
 			"source": "Manual",
 		}
